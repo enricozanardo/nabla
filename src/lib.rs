@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::ops::Index;
+use std::fmt;
 
 /// A struct representing a multi-dimensional tensor.
 #[derive(Debug)]
@@ -198,4 +199,10 @@ pub fn mean_perceptron_error(weights: &Tensor, bias: f64, features: &Tensor, lab
         total_error += error_linear(weights, bias, &feature, labels.data[i] as i32);
     }
     total_error / features.shape[0] as f64
+}
+
+impl fmt::Display for Tensor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Tensor(shape={:?}, data={:?})", self.shape, self.data)
+    }
 }
