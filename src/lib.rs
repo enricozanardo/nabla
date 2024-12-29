@@ -1,14 +1,14 @@
 use std::cmp::Ordering;
 use std::ops::Index;
 
-/// A struct representing a multi-dimensional array.
+/// A struct representing a multi-dimensional tensor.
 #[derive(Debug)]
-pub struct Array {
+pub struct Tensor {
     data: Vec<f64>,
     shape: Vec<usize>,
 }
 
-impl Index<usize> for Array {
+impl Index<usize> for Tensor {
     type Output = [f64];
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -19,9 +19,8 @@ impl Index<usize> for Array {
     }
 }
 
-
-impl Array {
-    /// Creates a new `Array` with the given data and shape.
+impl Tensor {
+    /// Creates a new `Tensor` with the given data and shape.
     ///
     /// # Panics
     ///
@@ -29,80 +28,90 @@ impl Array {
     pub fn new(data: Vec<f64>, shape: Vec<usize>) -> Self {
         let total_size: usize = shape.iter().product();
         assert_eq!(data.len(), total_size, "Data length must match shape dimensions");
-        Array { data, shape }
+        Tensor { data, shape }
     }
 
     pub fn len(&self) -> usize {
         self.shape[0]
     }
 
-    /// Creates a new `Array` filled with zeros.
+    /// Creates a new `Tensor` filled with zeros.
     ///
     /// # Arguments
     ///
-    /// * `shape` - A vector representing the dimensions of the array.
+    /// * `shape` - A vector representing the dimensions of the tensor.
     pub fn zeros(shape: Vec<usize>) -> Self {
         let size: usize = shape.iter().product();
-        Array {
+        Tensor {
             data: vec![0.0; size],
             shape,
         }
     }
 
-    /// Creates a new `Array` filled with ones.
+    /// Creates a new `Tensor` filled with ones.
     ///
     /// # Arguments
     ///
-    /// * `shape` - A vector representing the dimensions of the array.
+    /// * `shape` - A vector representing the dimensions of the tensor.
     pub fn ones(shape: Vec<usize>) -> Self {
         let size: usize = shape.iter().product();
-        Array {
+        Tensor {
             data: vec![1.0; size],
             shape,
         }
     }
 
-    /// Adds two arrays element-wise.
+    /// Adds two tensors element-wise.
     ///
     /// # Panics
     ///
-    /// Panics if the arrays do not have the same shape.
+    /// Panics if the tensors do not have the same shape.
     ///
     /// # Arguments
     ///
-    /// * `other` - Another array to add to this array.
-    pub fn add(&self, other: &Array) -> Array {
-        assert_eq!(self.shape, other.shape, "Arrays must have same shape");
+    /// * `other` - Another tensor to add to this tensor.
+    pub fn add(&self, other: &Tensor) -> Tensor {
+        assert_eq!(self.shape, other.shape, "Tensors must have same shape");
         let new_data: Vec<f64> = self
             .data
             .iter()
             .zip(other.data.iter())
             .map(|(&a, &b)| a + b)
             .collect();
-        Array::new(new_data, self.shape.clone())
+        Tensor::new(new_data, self.shape.clone())
     }
 
-    /// Multiplies two arrays element-wise.
+    /// Multiplies two tensors element-wise.
     ///
     /// # Panics
     ///
-    /// Panics if the arrays do not have the same shape.
+    /// Panics if the tensors do not have the same shape.
     ///
     /// # Arguments
     ///
-    /// * `other` - Another array to multiply with this array.
-    pub fn multiply(&self, other: &Array) -> Array {
-        assert_eq!(self.shape, other.shape, "Arrays must have same shape");
+    /// * `other` - Another tensor to multiply with this tensor.
+    pub fn multiply(&self, other: &Tensor) -> Tensor {
+        assert_eq!(self.shape, other.shape, "Tensors must have same shape");
         let new_data: Vec<f64> = self
             .data
             .iter()
             .zip(other.data.iter())
             .map(|(&a, &b)| a * b)
             .collect();
-        Array::new(new_data, self.shape.clone())
+        Tensor::new(new_data, self.shape.clone())
     }
 
-    /// Computes the dot product of two arrays.
+    /// Multiplies the tensor by a scalar value.
+    ///
+    /// # Arguments
+    ///
+    /// * `scalar` - The scalar value to multiply with.
+    pub fn multiply_scalar(&self, scalar: f64) -> Tensor {
+        let new_data: Vec<f64> = self.data.iter().map(|&x| x * scalar).collect();
+        Tensor::new(new_data, self.shape.clone())
+    }
+
+    /// Computes the dot product of two tensors.
     ///
     /// # Panics
     ///
@@ -110,13 +119,13 @@ impl Array {
     ///
     /// # Arguments
     ///
-    /// * `other` - Another array to compute the dot product with.
-    pub fn dot(&self, other: &Array) -> f64 {
+    /// * `other` - Another tensor to compute the dot product with.
+    pub fn dot(&self, other: &Tensor) -> f64 {
         assert_eq!(self.shape[1], other.shape[0], "Shapes are not aligned for dot product");
         self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a * b).sum()
     }
 
-    /// Computes the mean of the array elements.
+    /// Computes the mean of the tensor elements.
     pub fn mean(&self) -> f64 {
         let sum: f64 = self.data.iter().sum();
         sum / (self.data.len() as f64)
@@ -130,7 +139,7 @@ impl Array {
 /// * `weights` - The weights of the model.
 /// * `bias` - The bias of the model.
 /// * `features` - The input features.
-pub fn score_linear(weights: &Array, bias: f64, features: &Array) -> f64 {
+pub fn score_linear(weights: &Tensor, bias: f64, features: &Tensor) -> f64 {
     features.dot(weights) + bias
 }
 
@@ -153,7 +162,7 @@ pub fn step(x: f64) -> i32 {
 /// * `weights` - The weights of the model.
 /// * `bias` - The bias of the model.
 /// * `features` - The input features.
-pub fn prediction_linear(weights: &Array, bias: f64, features: &Array) -> i32 {
+pub fn prediction_linear(weights: &Tensor, bias: f64, features: &Tensor) -> i32 {
     step(score_linear(weights, bias, features))
 }
 
@@ -165,7 +174,7 @@ pub fn prediction_linear(weights: &Array, bias: f64, features: &Array) -> i32 {
 /// * `bias` - The bias of the model.
 /// * `features` - The input features.
 /// * `label` - The true label.
-pub fn error_linear(weights: &Array, bias: f64, features: &Array, label: i32) -> f64 {
+pub fn error_linear(weights: &Tensor, bias: f64, features: &Tensor, label: i32) -> f64 {
     let pred = prediction_linear(weights, bias, features);
     if pred == label {
         0.0
@@ -182,10 +191,10 @@ pub fn error_linear(weights: &Array, bias: f64, features: &Array, label: i32) ->
 /// * `bias` - The bias of the model.
 /// * `features` - The input features.
 /// * `labels` - The true labels.
-pub fn mean_perceptron_error(weights: &Array, bias: f64, features: &Array, labels: &Array) -> f64 {
+pub fn mean_perceptron_error(weights: &Tensor, bias: f64, features: &Tensor, labels: &Tensor) -> f64 {
     let mut total_error = 0.0;
     for i in 0..features.shape[0] {
-        let feature = Array::new(features.data[i * features.shape[1]..(i + 1) * features.shape[1]].to_vec(), vec![features.shape[1]]);
+        let feature = Tensor::new(features.data[i * features.shape[1]..(i + 1) * features.shape[1]].to_vec(), vec![features.shape[1]]);
         total_error += error_linear(weights, bias, &feature, labels.data[i] as i32);
     }
     total_error / features.shape[0] as f64
