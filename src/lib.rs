@@ -19,6 +19,10 @@ impl Array {
         Array { data, shape }
     }
 
+    pub fn len(&self) -> usize {
+        self.shape[0]
+    }
+
     /// Creates a new `Array` filled with zeros.
     ///
     /// # Arguments
