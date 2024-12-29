@@ -1,0 +1,13 @@
+[package]
+name = "nabla"
+version = "0.1.0"
+authors = ["Enrico Zanardo <enrico.zanardo101@gmail.com>"]
+edition = "2021"
+description = "A numpy-like library for Rust"
+license = "AGPL-3.0"
+documentation = "https://docs.rs/stellab"
+homepage = "https://stellab.it"
+repository = "https://github.com/enricozanardo/nabla.git"
+
+[dependencies]
+# Add any dependencies your library needs here
