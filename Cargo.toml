@@ -1,5 +1,5 @@
 [package]
-name = "nabla"
+name = "nabla-ml"
 version = "0.1.0"
 authors = ["Enrico Zanardo <enrico.zanardo101@gmail.com>"]
 edition = "2021"
