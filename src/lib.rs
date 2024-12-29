@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ops::Index;
 
 /// A struct representing a multi-dimensional array.
 #[derive(Debug)]
@@ -6,6 +7,18 @@ pub struct Array {
     data: Vec<f64>,
     shape: Vec<usize>,
 }
+
+impl Index<usize> for Array {
+    type Output = [f64];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let row_length = self.shape[1];
+        let start = index * row_length;
+        let end = start + row_length;
+        &self.data[start..end]
+    }
+}
+
 
 impl Array {
     /// Creates a new `Array` with the given data and shape.
