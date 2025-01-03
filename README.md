@@ -161,7 +161,7 @@ assert_eq!(array.shape(), loaded_array.shape());
 #### Save Multiple Arrays
 
 ```rust
-use nabla_ml::{NDArray, savez};
+use nabla_ml::{NDArray, savez_nab};
 
 fn main() -> std::io::Result<()> {
     let array1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
