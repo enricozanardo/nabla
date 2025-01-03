@@ -316,6 +316,28 @@ impl NDArray {
         let data: Vec<f64> = self.data.iter().cloned().filter(condition).collect();
         Self::from_vec(data)
     }
+
+    /// Returns the total number of elements in the array
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns the data type of the elements in the array
+    pub fn dtype(&self) -> &'static str {
+        "f64" // Since we're using f64 for all elements
+    }
+
+    /// Adds a new axis to the array at the specified position
+    pub fn new_axis(&self, axis: usize) -> Self {
+        let mut new_shape = self.shape.clone();
+        new_shape.insert(axis, 1);
+        Self::new(self.data.clone(), new_shape)
+    }
+
+    /// Expands the dimensions of the array by adding a new axis at the specified index
+    pub fn expand_dims(&self, axis: usize) -> Self {
+        self.new_axis(axis)
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -799,5 +821,69 @@ mod tests {
         let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
         let filtered = arr.filter(|&x| x > 0.7);
         assert_eq!(filtered.data(), &[0.94, 0.73, 0.83]);
+    }
+
+    #[test]
+    fn test_ndim() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![5.0, 6.0, 7.0, 8.0],
+            vec![9.0, 10.0, 11.0, 12.0],
+        ]);
+        assert_eq!(arr.ndim(), 2);
+    }
+
+    #[test]
+    fn test_shape() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![5.0, 6.0, 7.0, 8.0],
+            vec![9.0, 10.0, 11.0, 12.0],
+        ]);
+        assert_eq!(arr.shape(), &[3, 4]);
+    }
+
+    #[test]
+    fn test_size() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0, 4.0],
+            vec![5.0, 6.0, 7.0, 8.0],
+            vec![9.0, 10.0, 11.0, 12.0],
+        ]);
+        assert_eq!(arr.size(), 12);
+    }
+
+    #[test]
+    fn test_dtype() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        assert_eq!(arr.dtype(), "f64");
+    }
+
+    #[test]
+    fn test_new_axis_row_vector() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let row_vector = arr.new_axis(0);
+        assert_eq!(row_vector.shape(), &[1, 6]);
+    }
+
+    #[test]
+    fn test_new_axis_col_vector() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let col_vector = arr.new_axis(1);
+        assert_eq!(col_vector.shape(), &[6, 1]);
+    }
+
+    #[test]
+    fn test_expand_dims_axis_0() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let expanded = arr.expand_dims(0);
+        assert_eq!(expanded.shape(), &[1, 6]);
+    }
+
+    #[test]
+    fn test_expand_dims_axis_1() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let expanded = arr.expand_dims(1);
+        assert_eq!(expanded.shape(), &[6, 1]);
     }
 }
