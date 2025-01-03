@@ -61,21 +61,29 @@ let exp_arr = arr.exp();
 
 // Calculate hyperbolic tangent
 let tanh_arr = arr.tanh();
+```
+
+```rust
 // Apply ReLU
 let relu_arr = arr.relu();
+```     
 
 ![ReLU](./docs/relu.png)
 
+```rust
 // Apply Leaky ReLU with alpha = 0.01
 let leaky_relu_arr = arr.leaky_relu(0.01);
+```
 
 ![Leaky ReLU](./docs/leaky_relu.png)
 
+```rust
 // Apply Sigmoid
 let sigmoid_arr = arr.sigmoid();
+```
 
 ![Sigmoid](./docs/sigmoid.png)
-```
+
 
 ### Reshaping Arrays
 
