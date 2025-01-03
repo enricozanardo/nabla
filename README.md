@@ -45,9 +45,9 @@ let rand_int_mat = NDArray::randint_2d(1, 10, 3, 3);
 let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
 let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
 // Element-wise addition
-let sum = arr1 + arr2;
+let sum = arr1.clone() + arr2;
 // Scalar multiplication
-let scaled = arr1 2.0;
+let scaled = arr1.clone() *  2.0;
 ```
 
 ### Mathematical Functions
