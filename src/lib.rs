@@ -5,6 +5,7 @@ use std::ops::Add;
 use std::ops::Sub;
 use std::ops::{Mul, Div};
 use std::f64;
+use std::ops::{Index, IndexMut};
 
 /// A multi-dimensional array implementation inspired by NumPy's ndarray
 #[derive(Debug, Clone)]
@@ -239,6 +240,82 @@ impl NDArray {
         let data: Vec<f64> = self.data.iter().map(|&x| x.ln()).collect();
         Self::new(data, self.shape.clone())
     }
+
+    /// Returns a specific element from the array
+    pub fn get(&self, index: usize) -> f64 {
+        self.data[index]
+    }
+
+    /// Returns a slice of the array from start to end (exclusive)
+    pub fn slice(&self, start: usize, end: usize) -> Self {
+        let data = self.data[start..end].to_vec();
+        Self::from_vec(data)
+    }
+
+    /// Sets a specific element in the array
+    pub fn set(&mut self, index: usize, value: f64) {
+        self.data[index] = value;
+    }
+
+    /// Sets a range of elements in the array to a specific value
+    pub fn set_range(&mut self, start: usize, end: usize, value: f64) {
+        for i in start..end {
+            self.data[i] = value;
+        }
+    }
+
+    /// Returns a copy of the array
+    pub fn copy(&self) -> Self {
+        Self::new(self.data.clone(), self.shape.clone())
+    }
+
+    /// Returns a view (slice) of the array from start to end (exclusive)
+    pub fn view(&self, start: usize, end: usize) -> &[f64] {
+        &self.data[start..end]
+    }
+
+    /// Returns a mutable view (slice) of the array from start to end (exclusive)
+    pub fn view_mut(&mut self, start: usize, end: usize) -> &mut [f64] {
+        &mut self.data[start..end]
+    }
+
+    /// Returns a specific element from a 2D array
+    pub fn get_2d(&self, row: usize, col: usize) -> f64 {
+        assert_eq!(self.ndim(), 2, "get_2d is only applicable to 2D arrays");
+        let cols = self.shape[1];
+        self.data[row * cols + col]
+    }
+
+    /// Sets a specific element in a 2D array
+    pub fn set_2d(&mut self, row: usize, col: usize, value: f64) {
+        assert_eq!(self.ndim(), 2, "set_2d is only applicable to 2D arrays");
+        let cols = self.shape[1];
+        self.data[row * cols + col] = value;
+    }
+
+    /// Returns a sub-matrix from a 2D array
+    pub fn sub_matrix(&self, row_start: usize, row_end: usize, col_start: usize, col_end: usize) -> Self {
+        assert_eq!(self.ndim(), 2, "sub_matrix is only applicable to 2D arrays");
+        let cols = self.shape[1];
+        let mut data = Vec::new();
+        for row in row_start..row_end {
+            for col in col_start..col_end {
+                data.push(self.data[row * cols + col]);
+            }
+        }
+        Self::new(data, vec![row_end - row_start, col_end - col_start])
+    }
+
+    /// Returns a boolean array indicating whether each element satisfies the condition
+    pub fn greater_than(&self, threshold: f64) -> Vec<bool> {
+        self.data.iter().map(|&x| x > threshold).collect()
+    }
+
+    /// Returns a new array containing only the elements that satisfy the condition
+    pub fn filter(&self, condition: impl Fn(&f64) -> bool) -> Self {
+        let data: Vec<f64> = self.data.iter().cloned().filter(condition).collect();
+        Self::from_vec(data)
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -343,6 +420,20 @@ impl Div for NDArray {
         assert_eq!(self.shape, other.shape, "Shapes must be the same for element-wise division");
         let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a / b).collect();
         Self::new(data, self.shape.clone())
+    }
+}
+
+impl Index<usize> for NDArray {
+    type Output = f64;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl IndexMut<usize> for NDArray {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
     }
 }
 
@@ -588,5 +679,125 @@ mod tests {
         for (a, &e) in result.data().iter().zip(expected.iter()) {
             assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
         }
+    }
+
+    #[test]
+    fn test_get_element() {
+        let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        assert_eq!(arr.get(0), 0.69);
+    }
+
+    #[test]
+    fn test_slice() {
+        let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        let sliced = arr.slice(1, 4);
+        assert_eq!(sliced.data(), &[0.94, 0.66, 0.73]);
+    }
+
+    #[test]
+    fn test_set_element() {
+        let mut arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        arr.set(0, 1.0);
+        assert_eq!(arr.get(0), 1.0);
+    }
+
+    #[test]
+    fn test_index_operator() {
+        let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        assert_eq!(arr[0], 0.69);
+    }
+
+    #[test]
+    fn test_index_mut_operator() {
+        let mut arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        arr[0] = 1.0;
+        assert_eq!(arr[0], 1.0);
+    }
+
+    #[test]
+    fn test_single_element_assignment() {
+        let mut arr = NDArray::from_vec(vec![0.12, 0.94, 0.66, 0.73, 0.83]);
+        arr.set(0, 0.0);
+        assert_eq!(arr.data(), &[0.0, 0.94, 0.66, 0.73, 0.83]);
+    }
+
+    #[test]
+    fn test_range_assignment() {
+        let mut arr = NDArray::from_vec(vec![0.12, 0.94, 0.66, 0.73, 0.83]);
+        arr.set_range(0, arr.data.len(), 0.0);
+        assert_eq!(arr.data(), &[0.0, 0.0, 0.0, 0.0, 0.0]);
+
+        arr.set_range(2, 5, 0.5);
+        assert_eq!(arr.data(), &[0.0, 0.0, 0.5, 0.5, 0.5]);
+    }
+
+    #[test]
+    fn test_array_referencing() {
+        let mut arr = NDArray::from_vec(vec![6.0, 7.0, 8.0, 9.0]);
+        {
+            let view = arr.view_mut(0, 2);
+            view[1] = 4.0;
+        }
+        assert_eq!(arr.data(), &[6.0, 4.0, 8.0, 9.0]); // Original array is changed
+    }
+
+    #[test]
+    fn test_array_copying() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let mut copied = arr.copy();
+        assert_eq!(copied.data(), &[1.0, 2.0, 3.0]);
+
+        copied.set(0, 9.0);
+        assert_eq!(copied.data(), &[9.0, 2.0, 3.0]);
+        assert_eq!(arr.data(), &[1.0, 2.0, 3.0]); // Original array remains unchanged
+    }
+
+    #[test]
+    fn test_2d_indexing() {
+        let mat = NDArray::from_matrix(vec![
+            vec![5.0, 10.0, 15.0],
+            vec![20.0, 25.0, 30.0],
+            vec![35.0, 40.0, 45.0],
+        ]);
+        assert_eq!(mat.get_2d(0, 0), 5.0);
+        assert_eq!(mat.get_2d(0, 2), 15.0);
+        assert_eq!(mat.get_2d(2, 2), 45.0);
+    }
+
+    #[test]
+    fn test_2d_set() {
+        let mut mat = NDArray::from_matrix(vec![
+            vec![5.0, 10.0, 15.0],
+            vec![20.0, 25.0, 30.0],
+            vec![35.0, 40.0, 45.0],
+        ]);
+        mat.set_2d(0, 0, 50.0);
+        assert_eq!(mat.get_2d(0, 0), 50.0);
+    }
+
+    #[test]
+    fn test_sub_matrix() {
+        let mat = NDArray::from_matrix(vec![
+            vec![5.0, 10.0, 15.0],
+            vec![20.0, 25.0, 30.0],
+            vec![35.0, 40.0, 45.0],
+        ]);
+        let sub_mat = mat.sub_matrix(1, 3, 0, 3);
+        assert_eq!(sub_mat.shape(), &[2, 3]);
+        assert_eq!(sub_mat.to_string(), "array([[20, 25, 30],\n       [35, 40, 45]])");
+    }
+
+    #[test]
+    fn test_greater_than() {
+        let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        let result = arr.greater_than(0.7);
+        assert_eq!(result, vec![false, true, false, true, true]);
+    }
+
+    #[test]
+    fn test_filter() {
+        let arr = NDArray::from_vec(vec![0.69, 0.94, 0.66, 0.73, 0.83]);
+        let filtered = arr.filter(|&x| x > 0.7);
+        assert_eq!(filtered.data(), &[0.94, 0.73, 0.83]);
     }
 }
