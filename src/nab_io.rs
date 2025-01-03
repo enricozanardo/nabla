@@ -3,6 +3,7 @@ use std::io::{self, Read, Write};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use serde::{Serialize, Deserialize};
 use crate::NDArray;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 struct SerializableNDArray {
@@ -32,4 +33,20 @@ pub fn load_nab(filename: &str) -> io::Result<NDArray> {
     decoder.read_to_end(&mut serialized_data)?;
     let serializable_array: SerializableNDArray = bincode::deserialize(&serialized_data).unwrap();
     Ok(NDArray::new(serializable_array.data, serializable_array.shape))
+}
+
+/// Saves multiple NDArrays to a .nab file
+///
+/// # Arguments
+///
+/// * `filename` - The name of the file to save the arrays to.
+/// * `arrays` - A vector of tuples containing the name and NDArray to save.
+pub fn savez(filename: &str, arrays: Vec<(&str, &NDArray)>) -> io::Result<()> {
+    let mut file = File::create(filename)?;
+    for (name, array) in arrays {
+        let shape_str = array.shape().iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+        let data_str = array.data().iter().map(|d| d.to_string()).collect::<Vec<_>>().join(",");
+        writeln!(file, "{}:{};{}", name, shape_str, data_str)?;
+    }
+    Ok(())
 } 

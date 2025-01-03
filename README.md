@@ -139,6 +139,8 @@ let col_vector = arr.new_axis(1);
 
 ### File I/O with .nab Format
 
+#### Save and Load a Single Array
+
 ```rust
 use nabla_ml::{NDArray, save_nab, load_nab};
 
@@ -154,6 +156,22 @@ let loaded_array = load_nab("data.nab").expect("Failed to load array");
 // Verify the loaded data
 assert_eq!(array.data(), loaded_array.data());
 assert_eq!(array.shape(), loaded_array.shape());
+```
+
+#### Save Multiple Arrays
+
+```rust
+use nabla_ml::{NDArray, savez};
+
+fn main() -> std::io::Result<()> {
+    let array1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+    let array2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+
+    // Save arrays with specified names
+    savez("data.nab", vec![("x", &array1), ("y", &array2)])?;
+
+    Ok(())
+}
 ```
 
 ## License
