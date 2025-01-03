@@ -63,10 +63,18 @@ let exp_arr = arr.exp();
 let tanh_arr = arr.tanh();
 // Apply ReLU
 let relu_arr = arr.relu();
+
+![ReLU](./docs/relu.png)
+
 // Apply Leaky ReLU with alpha = 0.01
 let leaky_relu_arr = arr.leaky_relu(0.01);
+
+![Leaky ReLU](./docs/leaky_relu.png)
+
 // Apply Sigmoid
 let sigmoid_arr = arr.sigmoid();
+
+![Sigmoid](./docs/sigmoid.png)
 ```
 
 ### Reshaping Arrays
