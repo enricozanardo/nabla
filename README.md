@@ -19,7 +19,6 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 ### Creating Arrays
 
 ```rust
-ust
 use nabla_ml::NDArray;
 // Create a 1D array
 let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
