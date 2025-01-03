@@ -1,6 +1,10 @@
 use std::fmt;
 use rand::Rng;
 use rand_distr::StandardNormal;
+use std::ops::Add;
+use std::ops::Sub;
+use std::ops::{Mul, Div};
+use std::f64;
 
 /// A multi-dimensional array implementation inspired by NumPy's ndarray
 #[derive(Debug, Clone)]
@@ -205,6 +209,36 @@ impl NDArray {
     pub fn argmin(&self) -> usize {
         self.data.iter().enumerate().min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
     }
+
+    /// Calculates the square root of each element in the array
+    pub fn sqrt(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.sqrt()).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Calculates the exponential (e^x) of each element in the array
+    pub fn exp(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.exp()).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Calculates the sine of each element in the array
+    pub fn sin(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.sin()).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Calculates the cosine of each element in the array
+    pub fn cos(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.cos()).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Calculates the natural logarithm of each element in the array
+    pub fn ln(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.ln()).collect();
+        Self::new(data, self.shape.clone())
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -233,6 +267,82 @@ impl fmt::Display for NDArray {
             result.push_str("])");
             write!(f, "{}", result)
         }
+    }
+}
+
+impl Add<f64> for NDArray {
+    type Output = Self;
+
+    fn add(self, scalar: f64) -> Self::Output {
+        let data: Vec<f64> = self.data.iter().map(|&x| x + scalar).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Add for NDArray {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must be the same for element-wise addition");
+        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a + b).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Sub<f64> for NDArray {
+    type Output = Self;
+
+    fn sub(self, scalar: f64) -> Self::Output {
+        let data: Vec<f64> = self.data.iter().map(|&x| x - scalar).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Sub for NDArray {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must be the same for element-wise subtraction");
+        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a - b).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Mul<f64> for NDArray {
+    type Output = Self;
+
+    fn mul(self, scalar: f64) -> Self::Output {
+        let data: Vec<f64> = self.data.iter().map(|&x| x * scalar).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Mul for NDArray {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must be the same for element-wise multiplication");
+        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a * b).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Div<f64> for NDArray {
+    type Output = Self;
+
+    fn div(self, scalar: f64) -> Self::Output {
+        let data: Vec<f64> = self.data.iter().map(|&x| x / scalar).collect();
+        Self::new(data, self.shape.clone())
+    }
+}
+
+impl Div for NDArray {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must be the same for element-wise division");
+        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a / b).collect();
+        Self::new(data, self.shape.clone())
     }
 }
 
@@ -368,5 +478,115 @@ mod tests {
         assert_eq!(arr.argmax(), 4);
         assert_eq!(arr.min(), -2.0);
         assert_eq!(arr.argmin(), 1);
+    }
+
+    #[test]
+    fn test_scalar_addition() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.clone() + 2.0;
+        assert_eq!(result.data(), &[2.0, 3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn test_element_wise_addition() {
+        let arr1 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr1 + arr2;
+        assert_eq!(result.data(), &[0.0, 2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_scalar_subtraction() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.clone() - 10.0;
+        assert_eq!(result.data(), &[-10.0, -9.0, -8.0, -7.0]);
+    }
+
+    #[test]
+    fn test_element_wise_subtraction() {
+        let arr1 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr1 - arr2;
+        assert_eq!(result.data(), &[0.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_scalar_multiplication() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.clone() * 6.0;
+        assert_eq!(result.data(), &[0.0, 6.0, 12.0, 18.0]);
+    }
+
+    #[test]
+    fn test_element_wise_multiplication() {
+        let arr1 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr1 * arr2;
+        assert_eq!(result.data(), &[0.0, 1.0, 4.0, 9.0]);
+    }
+
+    #[test]
+    fn test_scalar_division() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.clone() / 2.0;
+        assert_eq!(result.data(), &[0.0, 0.5, 1.0, 1.5]);
+    }
+
+    #[test]
+    fn test_element_wise_division() {
+        let arr1 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr1 / arr2;
+        assert!(result.data().iter().zip(&[f64::NAN, 1.0, 1.0, 1.0]).all(|(a, &b)| a.is_nan() || (a - b).abs() < 1e-9));
+    }
+
+    #[test]
+    fn test_sqrt() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.sqrt();
+        let expected = &[0.0, 1.0, 1.41421356, 1.73205081];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
+        }
+    }
+
+    #[test]
+    fn test_exp() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.exp();
+        let expected = &[1.0, 2.71828183, 7.3890561, 20.08553692];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
+        }
+    }
+
+    #[test]
+    fn test_sin() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.sin();
+        let expected = &[0.0, 0.84147098, 0.90929743, 0.14112001];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
+        }
+    }
+
+    #[test]
+    fn test_cos() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0]);
+        let result = arr.cos();
+        let expected = &[1.0, 0.54030231, -0.41614684, -0.9899925];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
+        }
+    }
+
+    #[test]
+    fn test_ln() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let result = arr.ln();
+        let expected = &[0.0, 0.69314718, 1.09861229];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-8, "Value {} is not close to expected {}", a, e);
+        }
     }
 }
