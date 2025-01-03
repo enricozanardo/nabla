@@ -1,6 +1,6 @@
 [package]
 name = "nabla-ml"
-version = "0.1.17"
+version = "0.1.18"
 authors = ["Enrico Zanardo <enrico.zanardo101@gmail.com>"]
 edition = "2021"
 description = "A numpy-like library for Rust"
@@ -12,4 +12,8 @@ repository = "https://github.com/enricozanardo/nabla.git"
 [dependencies]
 # Add any dependencies your library needs here
 rand = "0.8"
-rand_distr = "0.4" 
+rand_distr = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0" 
+flate2 = "1.0"
+bincode = "1.3"

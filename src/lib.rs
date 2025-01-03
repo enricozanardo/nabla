@@ -2,6 +2,10 @@ use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64;
 
+mod nab_io;
+
+pub use nab_io::{save_nab, load_nab};
+
 /// A multi-dimensional array implementation inspired by NumPy's ndarray
 #[derive(Debug, Clone)]
 pub struct NDArray {
