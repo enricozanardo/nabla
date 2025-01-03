@@ -40,7 +40,8 @@ pub fn load_nab(filename: &str) -> io::Result<NDArray> {
 ///
 /// * `filename` - The name of the file to save the arrays to.
 /// * `arrays` - A vector of tuples containing the name and NDArray to save.
-pub fn savez(filename: &str, arrays: Vec<(&str, &NDArray)>) -> io::Result<()> {
+#[allow(dead_code)]
+pub fn savez_nab(filename: &str, arrays: Vec<(&str, &NDArray)>) -> io::Result<()> {
     let mut file = File::create(filename)?;
     for (name, array) in arrays {
         let shape_str = array.shape().iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");

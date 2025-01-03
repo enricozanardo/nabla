@@ -168,7 +168,7 @@ fn main() -> std::io::Result<()> {
     let array2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
 
     // Save arrays with specified names
-    savez("data.nab", vec![("x", &array1), ("y", &array2)])?;
+    savez_nab("data.nab", vec![("x", &array1), ("y", &array2)])?;
 
     Ok(())
 }
