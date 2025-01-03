@@ -3,7 +3,6 @@ use std::io::{self, Read, Write};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use serde::{Serialize, Deserialize};
 use crate::NDArray;
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 struct SerializableNDArray {
