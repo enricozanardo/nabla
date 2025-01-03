@@ -344,6 +344,24 @@ impl NDArray {
         let data: Vec<f64> = self.data.iter().map(|&x| x.tanh()).collect();
         Self::new(data, self.shape.clone())
     }
+
+    /// Applies the ReLU function to each element in the array
+    pub fn relu(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.max(0.0)).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Applies the Leaky ReLU function to each element in the array
+    pub fn leaky_relu(&self, alpha: f64) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| if x > 0.0 { x } else { alpha * x }).collect();
+        Self::new(data, self.shape.clone())
+    }
+
+    /// Applies the Sigmoid function to each element in the array
+    pub fn sigmoid(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| 1.0_f64 / (1.0_f64 + (-x).exp())).collect();
+        Self::new(data, self.shape.clone())
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -898,6 +916,38 @@ mod tests {
         let arr = NDArray::from_vec(vec![0.0_f64, 1.0_f64, -1.0_f64, 0.5_f64, -0.5_f64]);
         let result = arr.tanh();
         let expected = vec![0.0_f64.tanh(), 1.0_f64.tanh(), -1.0_f64.tanh(), 0.5_f64.tanh(), -0.5_f64.tanh()];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-9, "Value {} is not close to expected {}", a, e);
+        }
+    }
+
+    #[test]
+    fn test_relu() {
+        let arr = NDArray::from_vec(vec![-1.0, 0.0, 1.0, -0.5, 2.0]);
+        let result = arr.relu();
+        let expected = vec![0.0, 0.0, 1.0, 0.0, 2.0];
+        assert_eq!(result.data(), &expected);
+    }
+
+    #[test]
+    fn test_leaky_relu() {
+        let arr = NDArray::from_vec(vec![-1.0, 0.0, 1.0, -0.5, 2.0]);
+        let result = arr.leaky_relu(0.01);
+        let expected = vec![-0.01, 0.0, 1.0, -0.005, 2.0];
+        assert_eq!(result.data(), &expected);
+    }
+
+    #[test]
+    fn test_sigmoid() {
+        let arr = NDArray::from_vec(vec![0.0_f64, 1.0_f64, -1.0_f64, 0.5_f64, -0.5_f64]);
+        let result = arr.sigmoid();
+        let expected = vec![
+            0.5_f64,
+            1.0_f64 / (1.0_f64 + (-1.0_f64).exp()),
+            1.0_f64 / (1.0_f64 + 1.0_f64.exp()),
+            1.0_f64 / (1.0_f64 + (-0.5_f64).exp()),
+            1.0_f64 / (1.0_f64 + 0.5_f64.exp()),
+        ];
         for (a, &e) in result.data().iter().zip(expected.iter()) {
             assert!((a - e).abs() < 1e-9, "Value {} is not close to expected {}", a, e);
         }
