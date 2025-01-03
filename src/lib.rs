@@ -1,4 +1,6 @@
 use std::fmt;
+use rand::Rng;
+use rand_distr::StandardNormal;
 
 /// A multi-dimensional array implementation inspired by NumPy's ndarray
 #[derive(Debug, Clone)]
@@ -109,6 +111,100 @@ impl NDArray {
         }
         Self::from_vec(data)
     }
+
+    /// Creates an identity matrix of size `n x n`
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - The size of the identity matrix.
+    ///
+    /// # Returns
+    ///
+    /// An `n x n` identity matrix as an NDArray.
+    pub fn eye(n: usize) -> Self {
+        let mut data = vec![0.0; n * n];
+        for i in 0..n {
+            data[i * n + i] = 1.0;
+        }
+        Self::new(data, vec![n, n])
+    }
+
+    /// Creates a 1D array of random numbers between 0 and 1
+    pub fn rand(size: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..size).map(|_| rng.gen()).collect();
+        Self::from_vec(data)
+    }
+
+    /// Creates a 2D array (matrix) of random numbers between 0 and 1
+    pub fn rand_2d(rows: usize, cols: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..rows * cols).map(|_| rng.gen()).collect();
+        Self::new(data, vec![rows, cols])
+    }
+
+    /// Creates a 1D array of random numbers following a normal distribution
+    pub fn randn(size: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..size).map(|_| rng.sample(StandardNormal)).collect();
+        Self::from_vec(data)
+    }
+
+    /// Creates a 2D array (matrix) of random numbers following a normal distribution
+    pub fn randn_2d(rows: usize, cols: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..rows * cols).map(|_| rng.sample(StandardNormal)).collect();
+        Self::new(data, vec![rows, cols])
+    }
+
+    /// Creates a 1D array of random integers between `low` and `high`
+    pub fn randint(low: i32, high: i32, size: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..size).map(|_| rng.gen_range(low..high) as f64).collect();
+        Self::from_vec(data)
+    }
+
+    /// Creates a 2D array (matrix) of random integers between `low` and `high`
+    pub fn randint_2d(low: i32, high: i32, rows: usize, cols: usize) -> Self {
+        let mut rng = rand::thread_rng();
+        let data: Vec<f64> = (0..rows * cols).map(|_| rng.gen_range(low..high) as f64).collect();
+        Self::new(data, vec![rows, cols])
+    }
+
+    /// Reshapes the array to the specified shape
+    ///
+    /// # Arguments
+    ///
+    /// * `new_shape` - A vector representing the new shape.
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with the specified shape.
+    pub fn reshape(&self, new_shape: Vec<usize>) -> Self {
+        let new_size: usize = new_shape.iter().product();
+        assert_eq!(self.data.len(), new_size, "New shape must have the same number of elements as the original array");
+        Self::new(self.data.clone(), new_shape)
+    }
+
+    /// Returns the maximum value in the array
+    pub fn max(&self) -> f64 {
+        *self.data.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap()
+    }
+
+    /// Returns the index of the maximum value in the array
+    pub fn argmax(&self) -> usize {
+        self.data.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
+    }
+
+    /// Returns the minimum value in the array
+    pub fn min(&self) -> f64 {
+        *self.data.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap()
+    }
+
+    /// Returns the index of the minimum value in the array
+    pub fn argmin(&self) -> usize {
+        self.data.iter().enumerate().min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -206,5 +302,71 @@ mod tests {
         }
         
         assert_eq!(arr.to_string(), "array([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])");
+    }
+
+    #[test]
+    fn test_eye() {
+        let arr = NDArray::eye(1);
+        assert_eq!(arr.data(), &[1.0]);
+        assert_eq!(arr.to_string(), "array([[1]])");
+
+        let arr = NDArray::eye(2);
+        assert_eq!(arr.data(), &[1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(arr.to_string(), "array([[1, 0],\n       [0, 1]])");
+
+        let arr = NDArray::eye(3);
+        assert_eq!(arr.data(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(arr.to_string(), "array([[1, 0, 0],\n       [0, 1, 0],\n       [0, 0, 1]])");
+    }
+
+    #[test]
+    fn test_rand() {
+        let arr = NDArray::rand(5);
+        assert_eq!(arr.shape(), &[5]);
+        // Check that all values are between 0 and 1
+        assert!(arr.data().iter().all(|&x| x >= 0.0 && x < 1.0));
+    }
+
+    #[test]
+    fn test_rand_2d() {
+        let arr = NDArray::rand_2d(2, 3);
+        assert_eq!(arr.shape(), &[2, 3]);
+        // Check that all values are between 0 and 1
+        assert!(arr.data().iter().all(|&x| x >= 0.0 && x < 1.0));
+    }
+
+    #[test]
+    fn test_randint() {
+        let arr = NDArray::randint(1, 10, 5);
+        assert_eq!(arr.shape(), &[5]);
+        // Check that all values are between 1 and 9
+        assert!(arr.data().iter().all(|&x| x >= 1.0 && x < 10.0));
+    }
+
+    #[test]
+    fn test_randint_2d() {
+        let arr = NDArray::randint_2d(1, 10, 2, 3);
+        assert_eq!(arr.shape(), &[2, 3]);
+        // Check that all values are between 1 and 9
+        assert!(arr.data().iter().all(|&x| x >= 1.0 && x < 10.0));
+    }
+
+    #[test]
+    fn test_reshape() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(arr.shape(), &[6]);
+
+        let reshaped = arr.reshape(vec![2, 3]);
+        assert_eq!(reshaped.shape(), &[2, 3]);
+        assert_eq!(reshaped.to_string(), "array([[0, 1, 2],\n       [3, 4, 5]])");
+    }
+
+    #[test]
+    fn test_max_min() {
+        let arr = NDArray::from_vec(vec![1.0, -2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(arr.max(), 5.0);
+        assert_eq!(arr.argmax(), 4);
+        assert_eq!(arr.min(), -2.0);
+        assert_eq!(arr.argmin(), 1);
     }
 }
