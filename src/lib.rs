@@ -338,6 +338,12 @@ impl NDArray {
     pub fn expand_dims(&self, axis: usize) -> Self {
         self.new_axis(axis)
     }
+
+    /// Calculates the hyperbolic tangent of each element in the array
+    pub fn tanh(&self) -> Self {
+        let data: Vec<f64> = self.data.iter().map(|&x| x.tanh()).collect();
+        Self::new(data, self.shape.clone())
+    }
 }
 
 impl fmt::Display for NDArray {
@@ -885,5 +891,15 @@ mod tests {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         let expanded = arr.expand_dims(1);
         assert_eq!(expanded.shape(), &[6, 1]);
+    }
+
+    #[test]
+    fn test_tanh() {
+        let arr = NDArray::from_vec(vec![0.0_f64, 1.0_f64, -1.0_f64, 0.5_f64, -0.5_f64]);
+        let result = arr.tanh();
+        let expected = vec![0.0_f64.tanh(), 1.0_f64.tanh(), -1.0_f64.tanh(), 0.5_f64.tanh(), -0.5_f64.tanh()];
+        for (a, &e) in result.data().iter().zip(expected.iter()) {
+            assert!((a - e).abs() < 1e-9, "Value {} is not close to expected {}", a, e);
+        }
     }
 }

@@ -7,7 +7,7 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **Array Creation**: Create 1D and 2D arrays using vectors and matrices.
 - **Random Arrays**: Generate arrays with random numbers, including uniform and normal distributions.
 - **Arithmetic Operations**: Perform element-wise addition, subtraction, multiplication, and division.
-- **Mathematical Functions**: Apply functions like square root, exponential, sine, cosine, and logarithm to arrays.
+- **Mathematical Functions**: Apply functions like square root, exponential, sine, cosine, logarithm, and hyperbolic tangent to arrays.
 - **Array Reshaping**: Change the shape of arrays while maintaining data integrity.
 - **Indexing and Slicing**: Access and modify elements using indices and slices.
 - **Conditional Selection**: Filter arrays based on conditions.
@@ -57,11 +57,10 @@ let arr = NDArray::from_vec(vec![1.0, 4.0, 9.0]);
 // Calculate square roots
 let sqrt_arr = arr.sqrt();
 // Calculate exponentials
-let exp_arr = arr.exp();let arr = NDArray::from_vec(vec![1.0, 4.0, 9.0]);
-// Calculate square roots
-let sqrt_arr = arr.sqrt();
-// Calculate exponentials
 let exp_arr = arr.exp();
+
+// Calculate hyperbolic tangent
+let tanh_arr = arr.tanh();
 ```
 
 ### Reshaping Arrays
