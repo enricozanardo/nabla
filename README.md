@@ -13,6 +13,7 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **Conditional Selection**: Filter arrays based on conditions.
 - **Array Attributes**: Retrieve attributes like number of dimensions, shape, size, and data type.
 - **Axis Manipulation**: Add new axes to arrays to increase dimensionality.
+- **File I/O**: Save and load arrays using a custom `.nab` file format with compression.
 
 ## Usage
 
@@ -136,6 +137,24 @@ let row_vector = arr.new_axis(0);
 let col_vector = arr.new_axis(1);
 ```
 
+### File I/O with .nab Format
+
+```rust
+use nabla_ml::{NDArray, save_nab, load_nab};
+
+// Create an NDArray
+let array = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+
+// Save the array to a .nab file
+save_nab("data.nab", &array).expect("Failed to save array");
+
+// Load the array from the .nab file
+let loaded_array = load_nab("data.nab").expect("Failed to load array");
+
+// Verify the loaded data
+assert_eq!(array.data(), loaded_array.data());
+assert_eq!(array.shape(), loaded_array.shape());
+```
 
 ## License
 
