@@ -235,7 +235,7 @@ let y_pred: Vec<f64> = X_new.data().iter().map(|&x| theta_0 + theta_x1 * x).coll
 println!("Predictions:");
 println!("{:?}", y_pred);
 ```
-![Linear Regression](./docs/linear_regression.png)
+![Linear Regression](./docs/regression_plot.png)
 ![Loss History](./docs/loss_history.png)
 
 
