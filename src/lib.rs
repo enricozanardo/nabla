@@ -660,3 +660,59 @@ impl NDArray {
         Self::new(data, self.shape.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_ndarray() {
+        let data = vec![1.0, 2.0, 3.0, 4.0];
+        let shape = vec![2, 2];
+        let array = NDArray::new(data.clone(), shape.clone());
+        assert_eq!(array.data(), &data);
+        assert_eq!(array.shape(), &shape);
+    }
+
+    #[test]
+    fn test_from_vec() {
+        let data = vec![1.0, 2.0, 3.0];
+        let array = NDArray::from_vec(data.clone());
+        assert_eq!(array.data(), &data);
+        assert_eq!(array.shape(), &[3]);
+    }
+
+    #[test]
+    fn test_arange() {
+        let array = NDArray::arange(0.0, 5.0, 1.0);
+        assert_eq!(array.data(), &[0.0, 1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn test_save_and_load_nab() -> std::io::Result<()> {
+        let array = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+        save_nab("test.nab", &array)?;
+        let loaded_array = load_nab("test.nab")?;
+        assert_eq!(array.data(), loaded_array.data());
+        assert_eq!(array.shape(), loaded_array.shape());
+
+        // Clean up test file
+        std::fs::remove_file("test.nab")?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_savez_and_loadz_nab() -> std::io::Result<()> {
+        let array1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let array2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+        savez_nab("test_multiple.nab", vec![("x", &array1), ("y", &array2)])?;
+
+        let arrays = loadz_nab("test_multiple.nab")?;
+        assert_eq!(arrays.get("x").unwrap().data(), array1.data());
+        assert_eq!(arrays.get("y").unwrap().data(), array2.data());
+
+        // Clean up test file
+        std::fs::remove_file("test_multiple.nab")?;
+        Ok(())
+    }
+}
