@@ -88,9 +88,10 @@ dependencies = [
 
 [[package]]
 name = "nabla-ml"
-version = "0.1.23"
+version = "0.1.24"
 dependencies = [
  "bincode",
+ "byteorder",
  "flate2",
  "rand",
  "rand_distr",

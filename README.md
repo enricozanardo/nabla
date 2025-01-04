@@ -174,6 +174,24 @@ fn main() -> std::io::Result<()> {
 }
 ```
 
+#### Load Multiple Arrays
+
+```rust
+use nabla_ml::{NDArray, loadz_nab};
+use std::collections::HashMap;
+
+fn main() -> std::io::Result<()> {
+    // Load multiple arrays
+    let arrays: HashMap<String, NDArray> = loadz_nab("data.nab")?;
+    
+    // Access individual arrays by name
+    let x = arrays.get("x").unwrap();
+    let y = arrays.get("y").unwrap();
+
+    Ok(())
+}
+```
+
 ## License
 
 This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.

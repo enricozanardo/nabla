@@ -1,8 +1,10 @@
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use serde::{Serialize, Deserialize};
 use crate::NDArray;
+use std::collections::HashMap;
+
 
 #[derive(Serialize, Deserialize)]
 struct SerializableNDArray {
@@ -49,4 +51,42 @@ pub fn savez_nab(filename: &str, arrays: Vec<(&str, &NDArray)>) -> io::Result<()
         writeln!(file, "{}:{};{}", name, shape_str, data_str)?;
     }
     Ok(())
+}
+
+#[allow(dead_code)]
+pub fn loadz_nab(filename: &str) -> io::Result<HashMap<String, NDArray>> {
+    let file = File::open(filename)?;
+    let mut arrays = HashMap::new();
+    
+    // Read the file line by line
+    for line in io::BufReader::new(file).lines() {
+        let line = line?;
+        // Split the line into name, shape, and data parts
+        let parts: Vec<&str> = line.split(':').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        
+        let name = parts[0].to_string();
+        let shape_and_data: Vec<&str> = parts[1].split(';').collect();
+        if shape_and_data.len() != 2 {
+            continue;
+        }
+        
+        // Parse shape
+        let shape: Vec<usize> = shape_and_data[0]
+            .split(',')
+            .filter_map(|s| s.parse().ok())
+            .collect();
+            
+        // Parse data
+        let data: Vec<f64> = shape_and_data[1]
+            .split(',')
+            .filter_map(|s| s.parse().ok())
+            .collect();
+            
+        arrays.insert(name, NDArray::new(data, shape));
+    }
+    
+    Ok(arrays)
 } 
