@@ -693,6 +693,51 @@ impl NDArray {
         let loss = y_true.data.iter().zip(clipped_pred.iter()).map(|(t, p)| t * p.ln()).collect::<Vec<f64>>();
         -loss.iter().sum::<f64>() / y_true.shape()[0] as f64
     }
+
+    /// Calculates the gradients (nabla) for linear regression
+    ///
+    /// # Arguments
+    ///
+    /// * `X` - The input feature matrix
+    /// * `y` - The actual target values
+    /// * `y_pred` - The predicted values
+    /// * `N` - The number of samples
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the gradients (dtheta_0, dtheta_x1)
+    #[allow(non_snake_case)]
+    fn nabla(X: &[f64], y: &[f64], y_pred: &[f64], N: usize) -> (f64, f64) {
+        let dtheta_0 = -(2.0 / N as f64) * y.iter().zip(y_pred.iter()).map(|(&t, &p)| t - p).sum::<f64>();
+        let dtheta_x1 = -(2.0 / N as f64) * X.iter().zip(y.iter().zip(y_pred.iter())).map(|(&x, (&t, &p))| x * (t - p)).sum::<f64>();
+        (dtheta_0, dtheta_x1)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn linear_regression(X: &NDArray, y: &NDArray, alpha: f64, epochs: usize) -> (f64, f64, Vec<f64>) {
+        let N = X.shape()[0];
+        let mut theta_0 = 0.0;
+        let mut theta_x1 = 0.0;
+        let mut history = Vec::with_capacity(epochs);
+
+        for _ in 0..epochs {
+            // Predictions
+            let y_pred: Vec<f64> = X.data.iter().map(|&x| theta_0 + theta_x1 * x).collect();
+
+            // Calculate MSE
+            let mse = NDArray::mean_squared_error(y, &NDArray::from_vec(y_pred.clone()));
+            history.push(mse);
+
+            // Calculate gradients using nabla
+            let (dtheta_0, dtheta_x1) = Self::nabla(&X.data, &y.data, &y_pred, N);
+
+            // Update parameters
+            theta_0 -= alpha * dtheta_0;
+            theta_x1 -= alpha * dtheta_x1;
+        }
+
+        (theta_0, theta_x1, history)
+    }
 }
 
 #[cfg(test)]
@@ -772,5 +817,24 @@ mod tests {
         ]);
         let cross_entropy = NDArray::cross_entropy_loss(&y_true, &y_pred);
         assert!((cross_entropy - 0.267654016).abs() < 1e-4);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_linear_regression() {
+        // Set a random seed for reproducibility
+        let mut rng = rand::thread_rng();
+        let X = NDArray::from_vec((0..100).map(|_| 2.0 * rng.gen::<f64>()).collect());
+        let y = NDArray::from_vec(X.data.iter().map(|&x| 4.0 + 3.0 * x + rng.gen::<f64>()).collect());
+
+        // Adjust learning rate and epochs
+        let (theta_0, theta_x1, history) = NDArray::linear_regression(&X, &y, 0.01, 2000);
+
+        // Check if the parameters are close to the expected values
+        assert!((theta_0 - 4.0).abs() < 1.0);  // Increased tolerance
+        assert!((theta_x1 - 3.0).abs() < 1.0);
+
+        // Ensure the loss decreases over time
+        assert!(history.first().unwrap() > history.last().unwrap());
     }
 }

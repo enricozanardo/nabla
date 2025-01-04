@@ -15,7 +15,7 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **Axis Manipulation**: Add new axes to arrays to increase dimensionality.
 - **File I/O**: Save and load arrays using a custom `.nab` file format with compression.
 - **Loss Functions**: Calculate Mean Squared Error (MSE) and Cross-Entropy Loss.
-
+- **Linear Regression**: Perform linear regression using gradient descent with Mean Squared Error as the loss function.
 ## Usage
 
 ### Creating Arrays
@@ -209,6 +209,31 @@ let y_pred = NDArray::from_matrix(vec![
 ]);
 let cross_entropy = NDArray::cross_entropy_loss(&y_true, &y_pred);
 println!("Cross-Entropy Loss: {}", cross_entropy);
+```
+
+## Linear Regression
+
+Perform linear regression using gradient descent with Mean Squared Error as the loss function.
+
+```rust
+use nabla_ml::NDArray;
+
+// Generate a simple dataset
+let X = NDArray::from_vec((0..100).map(|_| 2.0 * rand::random::<f64>()).collect());
+let y = NDArray::from_vec(X.data().iter().map(|&x| 4.0 + 3.0 * x + rand::random::<f64>()).collect());
+
+// Apply linear regression
+let (theta_0, theta_x1, history) = NDArray::linear_regression(&X, &y, 0.1, 1000);
+
+println!("Final Parameters:");
+println!("Intercept (theta_0): {:.4}, Weight (theta_x1): {:.4}", theta_0, theta_x1);
+
+// Predict on new data
+let X_new = NDArray::from_vec(vec![0.0, 2.0]);
+let y_pred: Vec<f64> = X_new.data().iter().map(|&x| theta_0 + theta_x1 * x).collect();
+
+println!("Predictions:");
+println!("{:?}", y_pred);
 ```
 
 ## License
