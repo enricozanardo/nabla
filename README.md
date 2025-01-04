@@ -14,6 +14,7 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **Array Attributes**: Retrieve attributes like number of dimensions, shape, size, and data type.
 - **Axis Manipulation**: Add new axes to arrays to increase dimensionality.
 - **File I/O**: Save and load arrays using a custom `.nab` file format with compression.
+- **Loss Functions**: Calculate Mean Squared Error (MSE) and Cross-Entropy Loss.
 
 ## Usage
 
@@ -25,11 +26,10 @@ use nabla_ml::NDArray;
 let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
 // Create a 2D array
 let mat = NDArray::from_matrix(vec![
-vec![1.0, 2.0, 3.0],
-vec![4.0, 5.0, 6.0],
+    vec![1.0, 2.0, 3.0],
+    vec![4.0, 5.0, 6.0],
 ]);
 ```
-
 
 ### Random Arrays
 
@@ -48,7 +48,7 @@ let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
 // Element-wise addition
 let sum = arr1.clone() + arr2;
 // Scalar multiplication
-let scaled = arr1.clone() *  2.0;
+let scaled = arr1.clone() * 2.0;
 ```
 
 ### Mathematical Functions
@@ -59,32 +59,15 @@ let arr = NDArray::from_vec(vec![1.0, 4.0, 9.0]);
 let sqrt_arr = arr.sqrt();
 // Calculate exponentials
 let exp_arr = arr.exp();
-
 // Calculate hyperbolic tangent
 let tanh_arr = arr.tanh();
-```
-
-```rust
 // Apply ReLU
 let relu_arr = arr.relu();
-```     
-
-![ReLU](./docs/relu.png)
-
-```rust
 // Apply Leaky ReLU with alpha = 0.01
 let leaky_relu_arr = arr.leaky_relu(0.01);
-```
-
-![Leaky ReLU](./docs/leaky_relu.png)
-
-```rust
 // Apply Sigmoid
 let sigmoid_arr = arr.sigmoid();
 ```
-
-![Sigmoid](./docs/sigmoid.png)
-
 
 ### Reshaping Arrays
 
@@ -115,8 +98,8 @@ let filtered = arr.filter(|&x| x > 0.7);
 
 ```rust
 let arr = NDArray::from_matrix(vec![
-vec![1.0, 2.0, 3.0],
-vec![4.0, 5.0, 6.0],
+    vec![1.0, 2.0, 3.0],
+    vec![4.0, 5.0, 6.0],
 ]);
 // Get number of dimensions
 let ndim = arr.ndim();
@@ -190,6 +173,42 @@ fn main() -> std::io::Result<()> {
 
     Ok(())
 }
+```
+
+## Loss Functions
+
+### Mean Squared Error (MSE)
+
+The MSE measures the average of the squares of the differences between predicted and actual values.
+
+```rust
+use nabla_ml::NDArray;
+
+let y_true = NDArray::from_vec(vec![1.0, 0.0, 1.0, 1.0]);
+let y_pred = NDArray::from_vec(vec![0.9, 0.2, 0.8, 0.6]);
+let mse = NDArray::mean_squared_error(&y_true, &y_pred);
+println!("MSE: {}", mse);
+```
+
+### Cross-Entropy Loss
+
+Cross-Entropy Loss is commonly used for classification problems, especially with softmax outputs.
+
+```rust
+use nabla_ml::NDArray;
+
+let y_true = NDArray::from_matrix(vec![
+    vec![1.0, 0.0, 0.0],
+    vec![0.0, 1.0, 0.0],
+    vec![0.0, 0.0, 1.0],
+]);
+let y_pred = NDArray::from_matrix(vec![
+    vec![0.7, 0.2, 0.1],
+    vec![0.1, 0.8, 0.1],
+    vec![0.05, 0.15, 0.8],
+]);
+let cross_entropy = NDArray::cross_entropy_loss(&y_true, &y_pred);
+println!("Cross-Entropy Loss: {}", cross_entropy);
 ```
 
 ## License
