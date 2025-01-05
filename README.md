@@ -16,6 +16,7 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **File I/O**: Save and load arrays using a custom `.nab` file format with compression.
 - **Loss Functions**: Calculate Mean Squared Error (MSE) and Cross-Entropy Loss.
 - **Linear Regression**: Perform linear regression using gradient descent with Mean Squared Error as the loss function.
+
 ## Usage
 
 ### Creating Arrays
@@ -215,29 +216,61 @@ println!("Cross-Entropy Loss: {}", cross_entropy);
 
 Perform linear regression using gradient descent with Mean Squared Error as the loss function.
 
+### Single Feature
+
 ```rust
 use nabla_ml::NDArray;
 
 // Generate a simple dataset
-let X = NDArray::from_vec((0..100).map(|_| 2.0 * rand::random::<f64>()).collect());
+let X = NDArray::from_matrix((0..100).map(|_| vec![2.0 * rand::random::<f64>()]).collect());
 let y = NDArray::from_vec(X.data().iter().map(|&x| 4.0 + 3.0 * x + rand::random::<f64>()).collect());
 
 // Apply linear regression
-let (theta_0, theta_x1, history) = NDArray::linear_regression(&X, &y, 0.1, 1000);
+let (theta, history) = NDArray::linear_regression(&X, &y, 0.01, 2000);
 
 println!("Final Parameters:");
-println!("Intercept (theta_0): {:.4}, Weight (theta_x1): {:.4}", theta_0, theta_x1);
+println!("Intercept (theta_0): {:.4}, Weight (theta_1): {:.4}", theta[0], theta[1]);
 
 // Predict on new data
-let X_new = NDArray::from_vec(vec![0.0, 2.0]);
-let y_pred: Vec<f64> = X_new.data().iter().map(|&x| theta_0 + theta_x1 * x).collect();
+let X_new = NDArray::from_matrix(vec![vec![0.0], vec![2.0]]);
+let y_pred: Vec<f64> = X_new.data().iter().map(|&x| theta[0] + theta[1] * x).collect();
 
 println!("Predictions:");
 println!("{:?}", y_pred);
 ```
-![Linear Regression](./docs/regression_plot.png)
-![Loss History](./docs/loss_history.png)
 
+### Multiple Features
+
+```rust
+use nabla_ml::NDArray;
+
+// Generate a simple dataset with two features
+let X = NDArray::from_matrix(vec![
+    vec![0.0, 0.0],
+    vec![1.0, 0.0],
+    vec![0.0, 1.0],
+    vec![1.0, 1.0],
+    vec![2.0, 1.0],
+    vec![1.0, 2.0],
+    vec![2.0, 2.0],
+]);
+let y = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]); // y = 1 + 1*x1 + 2*x2
+
+// Apply linear regression
+let (theta, history) = NDArray::linear_regression(&X, &y, 0.01, 1000);
+
+println!("Final Parameters:");
+println!("Intercept (theta_0): {:.4}, Coefficients: {:?}", theta[0], &theta[1..]);
+
+// Predict on new data
+let X_new = NDArray::from_matrix(vec![vec![0.0, 0.0], vec![2.0, 2.0]]);
+let y_pred: Vec<f64> = X_new.data().chunks(X_new.shape()[1]).map(|x| {
+    theta[0] + x.iter().zip(&theta[1..]).map(|(&xi, &ti)| xi * ti).sum::<f64>()
+}).collect();
+
+println!("Predictions:");
+println!("{:?}", y_pred);
+```
 
 ## License
 
