@@ -70,6 +70,10 @@ let leaky_relu_arr = arr.leaky_relu(0.01);
 let sigmoid_arr = arr.sigmoid();
 ```
 
+![Leaky ReLU](./docs/leaky_relu.png)
+![Sigmoid](./docs/sigmoid.png)
+![ReLU](./docs/relu.png)
+
 ### Reshaping Arrays
 
 ```rust
@@ -271,6 +275,9 @@ let y_pred: Vec<f64> = X_new.data().chunks(X_new.shape()[1]).map(|x| {
 println!("Predictions:");
 println!("{:?}", y_pred);
 ```
+
+![Linear Regression](./docs/regression_plot.png)
+![Loss History](./docs/loss_history.png)
 
 ## License
 
