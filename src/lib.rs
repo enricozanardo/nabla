@@ -1,10 +1,10 @@
-mod nab_utils;
-mod nab_array;
-mod nabla;
-mod nab_loss;
-mod nab_functions;
-mod nab_io;
-mod nab_math;
-mod nab_regression;
-mod nab_mnist;
+pub mod nab_utils;
+pub mod nab_array;
+pub mod nabla;
+pub mod nab_loss;
+pub mod nab_functions;
+pub mod nab_io;
+pub mod nab_math;
+pub mod nab_regression;
+pub mod nab_mnist;
 
