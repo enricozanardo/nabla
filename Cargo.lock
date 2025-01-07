@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "nabla-ml"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "bincode",
  "byteorder",
