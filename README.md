@@ -180,6 +180,36 @@ fn main() -> std::io::Result<()> {
 }
 ```
 
+### MNIST Dataset Handling
+
+The library provides specialized functionality for handling MNIST-like datasets stored in CSV format.
+
+```rust
+use nabla_ml::NDArray;
+
+// Convert MNIST CSV data to .nab format
+NDArray::mnist_csv_to_nab(
+    "data/mnist_train.csv",          // Source CSV file
+    "datasets/mnist_images.nab",     // Output path for images
+    "datasets/mnist_labels.nab",     // Output path for labels
+    vec![28, 28]                    // Shape of each image
+)?;
+
+// Load and split the dataset into training and test sets
+let ((train_images, train_labels), (test_images, test_labels)) = 
+    NDArray::load_and_split_dataset("datasets/mnist", 80.0)?;
+
+// Access the data
+println!("Training samples: {}", train_images.shape()[0]);
+println!("Test samples: {}", test_images.shape()[0]);
+```
+
+The MNIST dataset handling includes:
+- Converting CSV format to compressed .nab files
+- Automatic separation of images and labels
+- Dataset splitting into training and test sets
+- Proper reshaping of image data
+
 ## Loss Functions
 
 ### Mean Squared Error (MSE)

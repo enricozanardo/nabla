@@ -13,6 +13,15 @@ pub struct NDArray {
     shape: Vec<usize>,
 }
 
+/// Represents a dataset split into training and testing sets
+#[derive(Debug)]
+pub struct DatasetSplit {
+    pub train_images: NDArray,
+    pub train_labels: NDArray,
+    pub test_images: NDArray,
+    pub test_labels: NDArray,
+}
+
 impl NDArray {
     /// Creates a new NDArray with the given data and shape
     ///
@@ -761,12 +770,178 @@ impl NDArray {
 
         (theta, history)
     }
+
+    /// Loads a dataset from .nab files and splits it into training and testing sets
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Base path for the .nab files (e.g., "mnist")
+    /// * `train_percent` - Percentage of data to use for training (e.g., 80 for 80%)
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing ((train_images, train_labels), (test_images, test_labels))
+    pub fn load_and_split_dataset(path: &str, train_percent: f64) -> std::io::Result<((NDArray, NDArray), (NDArray, NDArray))> {
+        let images = load_nab(&format!("{}_images.nab", path))?;
+        let labels = load_nab(&format!("{}_labels.nab", path))?;
+
+        let num_samples = images.shape()[0];
+        let train_size = ((train_percent / 100.0) * num_samples as f64).round() as usize;
+
+        let train_images = NDArray::new(
+            images.data()[..train_size * images.shape()[1] * images.shape()[2]].to_vec(),
+            vec![train_size, images.shape()[1], images.shape()[2]],
+        );
+
+        let test_images = NDArray::new(
+            images.data()[train_size * images.shape()[1] * images.shape()[2]..].to_vec(),
+            vec![num_samples - train_size, images.shape()[1], images.shape()[2]],
+        );
+
+        let train_labels = NDArray::new(
+            labels.data()[..train_size].to_vec(),
+            vec![train_size],
+        );
+
+        let test_labels = NDArray::new(
+            labels.data()[train_size..].to_vec(),
+            vec![num_samples - train_size],
+        );
+
+        Ok(((train_images, train_labels), (test_images, test_labels)))
+    }
+
+    /// Converts CSV data to .nab format
+    /// 
+    /// # Arguments
+    /// 
+    /// * `csv_path` - Path to the CSV file
+    /// * `output_path` - Path where to save the .nab file
+    /// * `shape` - Shape of the resulting array (e.g., [60000, 28, 28] for MNIST images)
+    pub fn csv_to_nab(csv_path: &str, output_path: &str, shape: Vec<usize>, skip_first_column: bool) -> std::io::Result<()> {
+        println!("Starting CSV to NAB conversion...");
+        println!("Input path: {}, Output path: {:?}", csv_path, output_path);
+        println!("Expected shape: {:?}", shape);
+        
+        // Read CSV file
+        let mut rdr = csv::Reader::from_path(csv_path)?;
+        let mut data = Vec::new();
+        let mut row_count = 0;
+
+        for result in rdr.records() {
+            row_count += 1;
+            let record = result?;
+            let start_index = if skip_first_column { 1 } else { 0 };
+            
+            println!("Processing row {}, columns: {}", row_count, record.len());
+            
+            for value in record.iter().skip(start_index) {
+                let num: f64 = value.parse().map_err(|e| {
+                    println!("Failed to parse value: {}", value);
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?;
+                data.push(num);
+            }
+        }
+
+        println!("Total data points collected: {}", data.len());
+        let expected_size: usize = shape.iter().product();
+        println!("Expected total size based on shape: {}", expected_size);
+
+        // Verify data size matches shape
+        if data.len() != expected_size {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Data length ({}) does not match expected size from shape ({:?}): {}",
+                    data.len(), shape, expected_size)
+            ));
+        }
+
+        // Create NDArray with the specified shape
+        let array = NDArray::from_vec_reshape(data, shape);
+        println!("Created NDArray with shape: {:?}", array.shape());
+        
+        // Save as .nab file
+        save_nab(output_path, &array)?;
+        println!("Successfully saved to {:?}", output_path);
+
+        Ok(())
+    }
+
+    /// Creates an NDArray from a flat vector and a specified shape
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - A vector of f64 values representing the array's data.
+    /// * `shape` - A vector of usize values representing the dimensions of the array.
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray instance.
+    pub fn from_vec_reshape(data: Vec<f64>, shape: Vec<usize>) -> Self {
+        let total_size: usize = shape.iter().product();
+        assert_eq!(data.len(), total_size, "Data length must match shape dimensions");
+        NDArray { data, shape }
+    }
+
+    /// Converts MNIST CSV data to image and label .nab files
+    /// 
+    /// # Arguments
+    /// 
+    /// * `csv_path` - Path to the CSV file
+    /// * `images_path` - Path where to save the images .nab file
+    /// * `labels_path` - Path where to save the labels .nab file
+    /// * `image_shape` - Shape of a single image (e.g., [28, 28])
+    pub fn mnist_csv_to_nab(
+        csv_path: &str,
+        images_path: &str,
+        labels_path: &str,
+        image_shape: Vec<usize>
+    ) -> std::io::Result<()> {
+        // Read CSV file
+        let mut rdr = csv::Reader::from_path(csv_path)?;
+        let mut images = Vec::new();
+        let mut labels = Vec::new();
+        let mut sample_count = 0;
+
+        for result in rdr.records() {
+            let record = result?;
+            sample_count += 1;
+
+            // First column is the label
+            if let Some(label) = record.get(0) {
+                labels.push(label.parse::<f64>().map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?);
+            }
+
+            // Remaining columns are image data
+            for value in record.iter().skip(1) {
+                let pixel: f64 = value.parse().map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?;
+                images.push(pixel);
+            }
+        }
+
+        // Create and save images array
+        let mut full_image_shape = vec![sample_count];
+        full_image_shape.extend(image_shape);
+        let images_array = NDArray::new(images, full_image_shape);
+        save_nab(images_path, &images_array)?;
+
+        // Create and save labels array
+        let labels_array = NDArray::new(labels, vec![sample_count]);
+        save_nab(labels_path, &labels_array)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use std::io;
     #[test]
     fn test_new_ndarray() {
         let data = vec![1.0, 2.0, 3.0, 4.0];
@@ -890,5 +1065,65 @@ mod tests {
 
         // Ensure the loss decreases over time
         assert!(history.first().unwrap() > history.last().unwrap());
+    }
+
+    #[test]
+    fn test_mnist_csv_to_nab_conversion() -> io::Result<()> {
+        // Define paths for the CSV and .nab files
+        let csv_path = "csv/mnist_test.csv";
+        let nab_path = "datasets/mnist_test.nab";
+        let expected_shape = vec![999, 28, 28];
+        
+        println!("Starting test with CSV: {}", csv_path);
+
+        // Convert CSV to .nab, skipping the first column
+        NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
+
+        // Load the .nab file
+        let images = load_nab(nab_path)?;
+        println!("Loaded NAB file with shape: {:?}", images.shape());
+
+        // Verify the shape of the data
+        assert_eq!(images.shape(), &expected_shape, 
+            "Shape mismatch: expected {:?}, got {:?}", expected_shape, images.shape());
+
+        // Clean up the .nab file
+        std::fs::remove_file(nab_path)?;
+        println!("Test cleanup complete");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mnist_load_and_split_dataset() -> io::Result<()> {
+        // Ensure the datasets directory exists
+        std::fs::create_dir_all("datasets")?;
+
+        // Convert CSV to .nab files
+        NDArray::mnist_csv_to_nab(
+            "csv/mnist_test.csv",
+            "datasets/mnist_images.nab",
+            "datasets/mnist_labels.nab",
+            vec![28, 28]
+        )?;
+
+        // Load and split the dataset
+        let ((train_images, train_labels), (test_images, test_labels)) = 
+            NDArray::load_and_split_dataset("datasets/mnist", 80.0)?;
+
+        println!("{:?}", train_images.shape());
+        println!("{:?}", train_labels.shape());
+        println!("{:?}", test_images.shape());
+        println!("{:?}", test_labels.shape());
+
+        // Verify the shapes
+        assert_eq!(train_images.shape()[0] + test_images.shape()[0], 9999);
+        assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 9999);
+
+        // Clean up
+        // std::fs::remove_file("datasets/mnist_images.nab")?;
+        // std::fs::remove_file("datasets/mnist_labels.nab")?;
+
+        Ok(())
     }
 }
