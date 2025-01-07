@@ -1,4 +1,5 @@
 /target
 .DS_Store
 
-datasets/mnist.nab
+datasets/mnist*
+csv/mnist.csv

@@ -1143,14 +1143,14 @@ mod tests {
         // Convert CSV to .nab files
         NDArray::mnist_csv_to_nab(
             "csv/mnist_test.csv",
-            "datasets/mnist_images.nab",
-            "datasets/mnist_labels.nab",
+            "datasets/mnist_test_images.nab",
+            "datasets/mnist_test_labels.nab",
             vec![28, 28]
         )?;
 
         // Load and split the dataset
         let ((train_images, train_labels), (test_images, test_labels)) = 
-            NDArray::load_and_split_dataset("datasets/mnist", 80.0)?;
+            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
 
         println!("{:?}", train_images.shape());
         println!("{:?}", train_labels.shape());
@@ -1162,8 +1162,8 @@ mod tests {
         assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
 
         // Clean up
-        std::fs::remove_file("datasets/mnist_images.nab")?;
-        std::fs::remove_file("datasets/mnist_labels.nab")?;
+        std::fs::remove_file("datasets/mnist_test_images.nab")?;
+        std::fs::remove_file("datasets/mnist_test_labels.nab")?;
 
         Ok(())
     }
