@@ -1,7 +1,7 @@
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 mod nab_io;
 
@@ -949,6 +949,15 @@ impl Add for NDArray {
     }
 }
 
+impl Add<f64> for NDArray {
+    type Output = Self;
+
+    fn add(self, scalar: f64) -> Self::Output {
+        let data = self.data.iter().map(|a| a + scalar).collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
 impl Mul<f64> for NDArray {
     type Output = Self;
 
@@ -957,6 +966,18 @@ impl Mul<f64> for NDArray {
         NDArray::new(data, self.shape.clone())
     }
 }
+
+impl Sub for NDArray {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must match for element-wise subtraction");
+        let data = self.data.iter().zip(other.data.iter()).map(|(a, b)| a - b).collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -1208,5 +1229,30 @@ mod tests {
         assert!((sigmoid_arr.data()[0] - 0.5).abs() < 1e-4);
         assert!((sigmoid_arr.data()[1] - 0.7311).abs() < 1e-4);
         assert!((sigmoid_arr.data()[2] - 0.2689).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_element_wise_subtraction() {
+        let arr1 = NDArray::from_vec(vec![5.0, 7.0, 9.0]);
+        let arr2 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let diff = arr1 - arr2;
+        assert_eq!(diff.data(), &[4.0, 5.0, 6.0]);
+    }
+
+    #[test]
+    fn test_scalar_addition() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let result = arr + 1.0;
+        assert_eq!(result.data(), &[2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_combined_operations() {
+        let X = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let theta_1 = 2.0;
+        let theta_0 = 1.0;
+        let predictions = X.clone() * theta_1 + theta_0;
+        assert_eq!(predictions.data(), &[3.0, 5.0, 7.0]);
     }
 }
