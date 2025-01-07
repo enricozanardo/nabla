@@ -107,6 +107,8 @@ let ((train_images, train_labels), (test_images, test_labels)) =
     NDArray::load_and_split_dataset("datasets/mnist_test", 80.0).expect("Failed to load and split dataset");
 ```
 
+Mnist dataset in .nab format can be found [here](https://github.com/enricozanardo/nabla_datasets/tree/main/mnist)
+
 ![ReLU](./docs/relu.png)
 ![Leaky ReLU](./docs/leaky_relu.png)
 ![Sigmoid](./docs/sigmoid.png)
