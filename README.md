@@ -114,9 +114,11 @@ Mnist dataset in .nab format can be found [here](https://github.com/enricozanard
 ![Sigmoid](./docs/sigmoid.png)
 ![Loss History](./docs/loss_history.png)
 ![Linear Regression](./docs/regression_plot.png)
+![MNIST - 42](./docs/42.png)
 
 ## License
 
 This project is licensed under the AGPL-3.0 License - see the [LICENSE](LICENSE) file for details.
+
 
 
