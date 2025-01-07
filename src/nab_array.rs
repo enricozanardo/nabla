@@ -129,20 +129,39 @@ impl NDArray {
         Self::new(data, vec![rows, cols])
     }
 
-    /// Reshapes the array to the specified shape
+    /// Reshapes the array to the specified shape, allowing one dimension to be inferred
     ///
     /// # Arguments
     ///
-    /// * `new_shape` - A vector representing the new shape.
+    /// * `new_shape` - A vector representing the new shape, with at most one dimension as `-1`.
     ///
     /// # Returns
     ///
     /// A new NDArray with the specified shape.
-    #[allow(dead_code)]
-    pub fn reshape(&self, new_shape: Vec<usize>) -> Self {
-        let new_size: usize = new_shape.iter().product();
-        assert_eq!(self.data.len(), new_size, "New shape must have the same number of elements as the original array");
-        Self::new(self.data.clone(), new_shape)
+    pub fn reshape(&self, mut new_shape: Vec<isize>) -> Self {
+        let total_elements = self.data.len();
+        let mut inferred_index = None;
+        let mut specified_size = 1;
+
+        for (i, &dim) in new_shape.iter().enumerate() {
+            if dim == -1 {
+                if inferred_index.is_some() {
+                    panic!("Only one dimension can be inferred");
+                }
+                inferred_index = Some(i);
+            } else {
+                specified_size *= dim as usize;
+            }
+        }
+
+        if let Some(index) = inferred_index {
+            new_shape[index] = (total_elements / specified_size) as isize;
+        }
+
+        let new_shape_usize: Vec<usize> = new_shape.iter().map(|&x| x as usize).collect();
+        assert_eq!(total_elements, new_shape_usize.iter().product::<usize>(), "New shape must have the same number of elements as the original array");
+
+        Self::new(self.data.clone(), new_shape_usize)
     }
 
      /// Returns the maximum value in the array
@@ -741,6 +760,13 @@ mod tests {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
         let scaled = arr.clone() * 2.0;
         assert_eq!(scaled.data(), &[2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_reshape() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let reshaped = arr.reshape(vec![2, 3]);
+        assert_eq!(reshaped.data(), &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
 
     #[test]
