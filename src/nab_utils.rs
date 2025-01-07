@@ -3,6 +3,36 @@ use crate::nab_io::{save_nab, load_nab};
 
 
 impl NDArray {
+
+
+    /// Normalizes the array values to range [0, 1] using min-max normalization
+    pub fn normalize(&mut self) {
+        let min_val = self.data().iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let max_val = self.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        
+        // Avoid division by zero if all values are the same
+        let range = max_val - min_val;
+        if range != 0.0 {
+            self.data.iter_mut().for_each(|x| {
+                *x = (*x - min_val) / range;
+            });
+        }
+    }
+
+    /// Normalizes the array values using specified min and max values
+    pub fn normalize_with_range(&mut self, min_val: f64, max_val: f64) {
+        let range = max_val - min_val;
+        if range != 0.0 {
+            self.data.iter_mut().for_each(|x| {
+                *x = (*x - min_val) / range;
+            });
+        }
+    }
+
+    pub fn data_mut(&mut self) -> &mut Vec<f64> {
+        &mut self.data
+    }
+
     /// Loads a dataset from .nab files and splits it into training and testing sets
     ///
     /// # Arguments
@@ -144,6 +174,7 @@ impl NDArray {
         }
         result
     }
+
 }
 
 

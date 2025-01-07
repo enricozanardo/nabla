@@ -4,8 +4,8 @@ use std::ops::{Add, Sub, Mul};
 
 #[derive(Debug, Clone)]
 pub struct NDArray {
-    data: Vec<f64>,
-    shape: Vec<usize>,
+    pub data: Vec<f64>,
+    pub shape: Vec<usize>,
 }
 
 impl NDArray {
@@ -14,7 +14,7 @@ impl NDArray {
         assert_eq!(data.len(), total_size, "Data length must match shape dimensions");
         NDArray { data, shape }
     }
-    
+
     pub fn from_vec(data: Vec<f64>) -> Self {
         let len = data.len();
         Self::new(data, vec![len])
@@ -223,14 +223,22 @@ impl NDArray {
     ///
     /// # Arguments
     ///
-    /// * `indent` - Optional indentation level for nested arrays
+    /// * `precision` - The number of decimal places to round each value to.
     #[allow(dead_code)]
-    pub fn pretty_print(&self, indent: usize) {
-        let indent_str = " ".repeat(indent);
+    pub fn pretty_print(&self, precision: usize) {
+        let indent_str = " ".repeat(precision);
+        
+        let format_value = |x: f64| -> String {
+            if x == 0.0 {
+                format!("{:.1}", x)
+            } else {
+                format!("{:.*}", precision, x)
+            }
+        };
         
         match self.ndim() {
             1 => println!("{}[{}]", indent_str, self.data.iter()
-                .map(|x| format!("{:3.0}", x))
+                .map(|&x| format_value(x))
                 .collect::<Vec<_>>()
                 .join(" ")),
                 
@@ -239,7 +247,7 @@ impl NDArray {
                 for i in 0..self.shape[0] {
                     print!("{}  [", indent_str);
                     for j in 0..self.shape[1] {
-                        print!("{:3.0}", self.get_2d(i, j));
+                        print!("{}", format_value(self.get_2d(i, j)));
                         if j < self.shape[1] - 1 {
                             print!(" ");
                         }
@@ -253,7 +261,7 @@ impl NDArray {
                 println!("{}[", indent_str);
                 for i in 0..self.shape[0] {
                     let slice = self.extract_sample(i);
-                    slice.pretty_print(indent + 2);
+                    slice.pretty_print(precision + 2);
                 }
                 println!("{}]", indent_str);
             }

@@ -140,7 +140,7 @@ mod tests {
         // Extract and print the 42nd entry
         println!("Label of 42nd entry: {}", train_labels.get(42));
         println!("Image of 42nd entry:");
-        let image_42 = train_images.extract_sample(42);
+        let image_42: NDArray = train_images.extract_sample(42);
         image_42.pretty_print(0);
 
         // Clean up
@@ -149,4 +149,20 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_mnist_normalize() -> std::io::Result<()> {
+        let ((mut train_images, _), _) = 
+            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
+        
+        train_images.normalize_with_range(0.0, 255.0);
+        
+        // Add this to check actual values
+        let gray_image_42 = train_images.extract_sample(42);
+        println!("First few raw values: {:?}", &gray_image_42.data()[..5]);
+        gray_image_42.pretty_print(4); // Add precision parameter to show 3 decimal places
+
+        Ok(())
+    }
 } 
+
