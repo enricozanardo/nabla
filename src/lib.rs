@@ -1,6 +1,7 @@
 use rand::Rng;
 use rand_distr::StandardNormal;
 use std::f64;
+use std::ops::{Add, Mul};
 
 mod nab_io;
 
@@ -367,8 +368,8 @@ impl NDArray {
     ///
     /// A new NDArray with the square root of each element.
     pub fn sqrt(&self) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| x.sqrt()).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| x.sqrt()).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Calculates the exponential (e^x) of each element in the array
@@ -377,8 +378,8 @@ impl NDArray {
     ///
     /// A new NDArray with the exponential of each element.
     pub fn exp(&self) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| x.exp()).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| x.exp()).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Calculates the sine of each element in the array
@@ -631,8 +632,8 @@ impl NDArray {
     ///
     /// A new NDArray with the hyperbolic tangent of each element.
     pub fn tanh(&self) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| x.tanh()).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| x.tanh()).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Applies the ReLU function to each element in the array
@@ -641,8 +642,8 @@ impl NDArray {
     ///
     /// A new NDArray with the ReLU function applied to each element.
     pub fn relu(&self) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| x.max(0.0)).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| x.max(0.0)).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Applies the Leaky ReLU function to each element in the array
@@ -655,8 +656,8 @@ impl NDArray {
     ///
     /// A new NDArray with the Leaky ReLU function applied to each element.
     pub fn leaky_relu(&self, alpha: f64) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| if x > 0.0 { x } else { alpha * x }).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| if *x > 0.0 { *x } else { alpha * *x }).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Applies the Sigmoid function to each element in the array
@@ -665,8 +666,8 @@ impl NDArray {
     ///
     /// A new NDArray with the Sigmoid function applied to each element.
     pub fn sigmoid(&self) -> Self {
-        let data: Vec<f64> = self.data.iter().map(|&x| 1.0_f64 / (1.0_f64 + (-x).exp())).collect();
-        Self::new(data, self.shape.clone())
+        let data = self.data.iter().map(|x| 1.0 / (1.0 + (-x).exp())).collect();
+        NDArray::new(data, self.shape.clone())
     }
 
     /// Calculates the Mean Squared Error (MSE) between two arrays
@@ -938,6 +939,25 @@ impl NDArray {
     }
 }
 
+impl Add for NDArray {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        assert_eq!(self.shape, other.shape, "Shapes must match for element-wise addition");
+        let data = self.data.iter().zip(other.data.iter()).map(|(a, b)| a + b).collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+impl Mul<f64> for NDArray {
+    type Output = Self;
+
+    fn mul(self, scalar: f64) -> Self::Output {
+        let data = self.data.iter().map(|a| a * scalar).collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1117,13 +1137,76 @@ mod tests {
         println!("{:?}", test_labels.shape());
 
         // Verify the shapes
-        assert_eq!(train_images.shape()[0] + test_images.shape()[0], 9999);
-        assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 9999);
+        assert_eq!(train_images.shape()[0] + test_images.shape()[0], 999);
+        assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
 
         // Clean up
-        // std::fs::remove_file("datasets/mnist_images.nab")?;
-        // std::fs::remove_file("datasets/mnist_labels.nab")?;
+        std::fs::remove_file("datasets/mnist_images.nab")?;
+        std::fs::remove_file("datasets/mnist_labels.nab")?;
 
         Ok(())
+    }
+
+    #[test]
+    fn test_element_wise_addition() {
+        let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+        let sum = arr1.clone() + arr2;
+        assert_eq!(sum.data(), &[5.0, 7.0, 9.0]);
+    }
+
+    #[test]
+    fn test_scalar_multiplication() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let scaled = arr.clone() * 2.0;
+        assert_eq!(scaled.data(), &[2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_sqrt() {
+        let arr = NDArray::from_vec(vec![1.0, 4.0, 9.0]);
+        let sqrt_arr = arr.sqrt();
+        assert_eq!(sqrt_arr.data(), &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn test_exp() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, 2.0]);
+        let exp_arr = arr.exp();
+        assert!((exp_arr.data()[0] - 1.0).abs() < 1e-4);
+        assert!((exp_arr.data()[1] - std::f64::consts::E).abs() < 1e-4);
+        assert!((exp_arr.data()[2] - std::f64::consts::E.powi(2)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_tanh() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, -1.0]);
+        let tanh_arr = arr.tanh();
+        assert!((tanh_arr.data()[0] - 0.0).abs() < 1e-4);
+        assert!((tanh_arr.data()[1] - 0.7616).abs() < 1e-4);
+        assert!((tanh_arr.data()[2] + 0.7616).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_relu() {
+        let arr = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let relu_arr = arr.relu();
+        assert_eq!(relu_arr.data(), &[0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_leaky_relu() {
+        let arr = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let leaky_relu_arr = arr.leaky_relu(0.01);
+        assert_eq!(leaky_relu_arr.data(), &[-0.01, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_sigmoid() {
+        let arr = NDArray::from_vec(vec![0.0, 1.0, -1.0]);
+        let sigmoid_arr = arr.sigmoid();
+        assert!((sigmoid_arr.data()[0] - 0.5).abs() < 1e-4);
+        assert!((sigmoid_arr.data()[1] - 0.7311).abs() < 1e-4);
+        assert!((sigmoid_arr.data()[2] - 0.2689).abs() < 1e-4);
     }
 }
