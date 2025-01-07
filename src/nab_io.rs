@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{self, BufRead, Read, Write};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use serde::{Serialize, Deserialize};
-use crate::NDArray;
 use std::collections::HashMap;
 
+use crate::nab_array::NDArray;
 
 #[derive(Serialize, Deserialize)]
 struct SerializableNDArray {
@@ -17,8 +17,8 @@ pub fn save_nab(filename: &str, array: &NDArray) -> io::Result<()> {
     let file = File::create(filename)?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     let serializable_array = SerializableNDArray {
-        data: array.data.clone(),
-        shape: array.shape.clone(),
+        data: array.data().to_vec(),
+        shape: array.shape().to_vec(),
     };
     let serialized_data = bincode::serialize(&serializable_array).unwrap();
     encoder.write_all(&serialized_data)?;
