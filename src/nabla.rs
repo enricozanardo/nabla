@@ -14,6 +14,7 @@ impl NDArray {
     ///
     /// A vector containing the gradients for each parameter
     #[allow(non_snake_case)]
+    #[allow(dead_code)]
     pub fn nabla(X: &NDArray, y: &NDArray, y_pred: &NDArray, N: usize) -> Vec<f64> {
         let mut gradients = vec![0.0; X.shape()[1] + 1]; // +1 for the intercept
         let errors: Vec<f64> = y.data().iter().zip(y_pred.data().iter()).map(|(&t, &p)| t - p).collect();

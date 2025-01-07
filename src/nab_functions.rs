@@ -7,6 +7,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the hyperbolic tangent of each element.
+    #[allow(dead_code)]
     pub fn tanh(&self) -> Self {
         let data = self.data().iter().map(|x| x.tanh()).collect();
         NDArray::new(data, self.shape().to_vec())
@@ -17,6 +18,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the ReLU function applied to each element.
+    #[allow(dead_code)]
     pub fn relu(&self) -> Self {
         let data = self.data().iter().map(|x| x.max(0.0)).collect();
         NDArray::new(data, self.shape().to_vec())
@@ -31,6 +33,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the Leaky ReLU function applied to each element.
+    #[allow(dead_code)]
     pub fn leaky_relu(&self, alpha: f64) -> Self {
         let data = self.data().iter().map(|x| if *x > 0.0 { *x } else { alpha * *x }).collect();
         NDArray::new(data, self.shape().to_vec())
@@ -41,6 +44,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the Sigmoid function applied to each element.
+    #[allow(dead_code)]
     pub fn sigmoid(&self) -> Self {
         let data = self.data().iter().map(|x| 1.0 / (1.0 + (-x).exp())).collect();
         NDArray::new(data, self.shape().to_vec())

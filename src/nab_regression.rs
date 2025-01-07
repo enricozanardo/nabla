@@ -16,6 +16,7 @@ impl NDArray {
     ///
     /// A tuple containing the optimized parameters and the history of MSE for each epoch.
     #[allow(non_snake_case)]
+    #[allow(dead_code)]
     pub fn linear_regression(X: &NDArray, y: &NDArray, alpha: f64, epochs: usize) -> (Vec<f64>, Vec<f64>) {
         let N = X.shape()[0];
         let mut theta = vec![0.0; X.shape()[1] + 1]; // +1 for the intercept

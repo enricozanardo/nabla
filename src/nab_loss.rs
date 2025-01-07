@@ -11,6 +11,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The MSE as a f64.
+    #[allow(dead_code)]
     pub fn mean_squared_error(y_true: &NDArray, y_pred: &NDArray) -> f64 {
         assert_eq!(y_true.shape(), y_pred.shape(), "Shapes of y_true and y_pred must match");
         let diff = y_true.data().iter().zip(y_pred.data().iter()).map(|(t, p)| (t - p).powi(2)).collect::<Vec<f64>>();
@@ -26,7 +27,8 @@ impl NDArray {
     ///
     /// # Returns
     ///
-    /// The Cross-Entropy Loss as a f64.
+    /// The Cross-Entropy Loss as a f64.    
+    #[allow(dead_code)]
     pub fn cross_entropy_loss(y_true: &NDArray, y_pred: &NDArray) -> f64 {
         assert_eq!(y_true.shape(), y_pred.shape(), "Shapes of y_true and y_pred must match");
         let epsilon = 1e-8;

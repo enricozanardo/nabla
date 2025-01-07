@@ -1,5 +1,5 @@
 use crate::nab_array::NDArray;
-use crate::nab_io::{save_nab, load_nab};
+use crate::nab_io::save_nab;
 
 
 /// Represents a dataset split into training and testing sets
@@ -21,6 +21,7 @@ impl NDArray {
     /// * `images_path` - Path where to save the images .nab file
     /// * `labels_path` - Path where to save the labels .nab file
     /// * `image_shape` - Shape of a single image (e.g., [28, 28])
+    #[allow(dead_code)]
     pub fn mnist_csv_to_nab(
         csv_path: &str,
         images_path: &str,
@@ -66,6 +67,8 @@ impl NDArray {
 mod tests {
     use super::*;
     use std::io;
+    use crate::nab_io::load_nab;
+
     #[test]
     fn test_mnist_load_and_split_dataset() -> std::io::Result<()> {
         std::fs::create_dir_all("datasets")?;
@@ -83,8 +86,8 @@ mod tests {
         assert_eq!(train_images.shape()[0] + test_images.shape()[0], 999);
         assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
 
-        std::fs::remove_file("datasets/mnist_test_images.nab")?;
-        std::fs::remove_file("datasets/mnist_test_labels.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_images.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_labels.nab")?;
 
         Ok(())
     }
@@ -99,7 +102,7 @@ mod tests {
         println!("Starting test with CSV: {}", csv_path);
 
         // Convert CSV to .nab, skipping the first column
-        // NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
+        NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
 
         // Load the .nab file
         let images = load_nab(nab_path)?;
@@ -117,8 +120,6 @@ mod tests {
     }
     
 
-
-   
     #[test]
     fn test_extract_and_print_sample() -> io::Result<()> {
         // Ensure the datasets directory exists
@@ -143,8 +144,8 @@ mod tests {
         image_42.pretty_print(0);
 
         // Clean up
-        std::fs::remove_file("datasets/mnist_test_images.nab")?;
-        std::fs::remove_file("datasets/mnist_test_labels.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_images.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_labels.nab")?;
 
         Ok(())
     }

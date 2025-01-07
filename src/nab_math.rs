@@ -1,12 +1,12 @@
 use crate::nab_array::NDArray;
 
-
 impl NDArray {
 /// Calculates the square root of each element in the array
     ///
     /// # Returns
     ///
     /// A new NDArray with the square root of each element.
+    #[allow(dead_code)]
     pub fn sqrt(&self) -> Self {
         let data = self.data().iter().map(|x| x.sqrt()).collect();
         NDArray::new(data, self.shape().to_vec())
@@ -17,6 +17,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the exponential of each element.
+    #[allow(dead_code)]
     pub fn exp(&self) -> Self {
         let data = self.data().iter().map(|x| x.exp()).collect();
         NDArray::new(data, self.shape().to_vec())
@@ -27,6 +28,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the sine of each element.
+    #[allow(dead_code)]
     pub fn sin(&self) -> Self {
         let data: Vec<f64> = self.data().iter().map(|&x| x.sin()).collect();
         Self::new(data, self.shape().to_vec())
@@ -37,6 +39,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the cosine of each element.
+    #[allow(dead_code)]
     pub fn cos(&self) -> Self {
         let data: Vec<f64> = self.data().iter().map(|&x| x.cos()).collect();
         Self::new(data, self.shape().to_vec())
@@ -47,6 +50,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the natural logarithm of each element.
+    #[allow(dead_code)]
     pub fn ln(&self) -> Self {
         let data: Vec<f64> = self.data().iter().map(|&x| x.ln()).collect();
         Self::new(data, self.shape().to_vec())

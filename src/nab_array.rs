@@ -14,12 +14,13 @@ impl NDArray {
         assert_eq!(data.len(), total_size, "Data length must match shape dimensions");
         NDArray { data, shape }
     }
-
+    
     pub fn from_vec(data: Vec<f64>) -> Self {
         let len = data.len();
         Self::new(data, vec![len])
     }
 
+    #[allow(dead_code)]
     pub fn from_matrix(data: Vec<Vec<f64>>) -> Self {
         let rows = data.len();
         let cols = data.get(0).map_or(0, |row| row.len());
@@ -50,6 +51,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 2D NDArray filled with random numbers.
+    #[allow(dead_code)]
     pub fn rand_2d(rows: usize, cols: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..rows * cols).map(|_| rng.gen()).collect();
@@ -66,6 +68,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray filled with random numbers from a normal distribution.
+    #[allow(dead_code)]
     pub fn randn(size: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..size).map(|_| rng.sample(StandardNormal)).collect();
@@ -82,6 +85,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 2D NDArray filled with random numbers from a normal distribution.
+    #[allow(dead_code)]
     pub fn randn_2d(rows: usize, cols: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..rows * cols).map(|_| rng.sample(StandardNormal)).collect();
@@ -99,6 +103,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray filled with random integers.
+    #[allow(dead_code)]
     pub fn randint(low: i32, high: i32, size: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..size).map(|_| rng.gen_range(low..high) as f64).collect();
@@ -117,6 +122,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 2D NDArray filled with random integers.
+    #[allow(dead_code)]
     pub fn randint_2d(low: i32, high: i32, rows: usize, cols: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..rows * cols).map(|_| rng.gen_range(low..high) as f64).collect();
@@ -132,6 +138,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the specified shape.
+    #[allow(dead_code)]
     pub fn reshape(&self, new_shape: Vec<usize>) -> Self {
         let new_size: usize = new_shape.iter().product();
         assert_eq!(self.data.len(), new_size, "New shape must have the same number of elements as the original array");
@@ -143,6 +150,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The maximum value as an f64.
+    #[allow(dead_code)]
     pub fn max(&self) -> f64 {
         *self.data.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap()
     }
@@ -152,6 +160,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The index of the maximum value.
+    #[allow(dead_code)]
     pub fn argmax(&self) -> usize {
         self.data.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
     }
@@ -161,6 +170,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The minimum value as an f64.
+    #[allow(dead_code)]
     pub fn min(&self) -> f64 {
         *self.data.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap()
     }
@@ -175,6 +185,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray instance.
+    #[allow(dead_code)]
     pub fn from_vec_reshape(data: Vec<f64>, shape: Vec<usize>) -> Self {
         let total_size: usize = shape.iter().product();
         assert_eq!(data.len(), total_size, "Data length must match shape dimensions");
@@ -190,6 +201,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray containing just the specified sample with N-1 dimensions
+    #[allow(dead_code)]
     pub fn extract_sample(&self, sample_index: usize) -> Self {
         assert!(self.ndim() >= 2, "Array must have at least 2 dimensions");
         assert!(sample_index < self.shape[0], "Sample index out of bounds");
@@ -212,6 +224,7 @@ impl NDArray {
     /// # Arguments
     ///
     /// * `indent` - Optional indentation level for nested arrays
+    #[allow(dead_code)]
     pub fn pretty_print(&self, indent: usize) {
         let indent_str = " ".repeat(indent);
         
@@ -257,6 +270,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The element at the specified index.
+    #[allow(dead_code)]
     pub fn get(&self, index: usize) -> f64 {
         self.data[index]
     }
@@ -272,6 +286,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray containing the range of numbers.
+    #[allow(dead_code)]
     pub fn arange(start: f64, stop: f64, step: f64) -> Self {
         let mut data = Vec::new();
         let mut current = start;
@@ -291,6 +306,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray filled with zeros.
+    #[allow(dead_code)]
     pub fn zeros(size: usize) -> Self {
         Self::from_vec(vec![0.0; size])
     }
@@ -306,6 +322,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 2D NDArray filled with zeros.
+    #[allow(dead_code)]
     pub fn zeros_2d(rows: usize, cols: usize) -> Self {
         Self::new(vec![0.0; rows * cols], vec![rows, cols])
     }
@@ -319,6 +336,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray filled with ones.
+    #[allow(dead_code)]
     pub fn ones(size: usize) -> Self {
         Self::from_vec(vec![1.0; size])
     }
@@ -333,6 +351,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 2D NDArray filled with ones.
+    #[allow(dead_code)]
     pub fn ones_2d(rows: usize, cols: usize) -> Self {
         Self::new(vec![1.0; rows * cols], vec![rows, cols])
     }
@@ -349,6 +368,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray containing the evenly spaced numbers.
+    #[allow(dead_code)]
     pub fn linspace(start: f64, end: f64, num: usize, precision: usize) -> Self {
         assert!(num > 1, "Number of samples must be greater than 1");
         let step = (end - start) / (num - 1) as f64;
@@ -371,6 +391,7 @@ impl NDArray {
     /// # Returns
     ///
     /// An `n x n` identity matrix as an NDArray.
+    #[allow(dead_code)]
     pub fn eye(n: usize) -> Self {
         let mut data = vec![0.0; n * n];
         for i in 0..n {
@@ -388,6 +409,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A 1D NDArray filled with random numbers.
+    #[allow(dead_code)]
     pub fn rand(size: usize) -> Self {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..size).map(|_| rng.gen()).collect();
@@ -407,6 +429,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray representing the specified sub-matrix.
+    #[allow(dead_code)]
     pub fn sub_matrix(&self, row_start: usize, row_end: usize, col_start: usize, col_end: usize) -> Self {
         assert_eq!(self.ndim(), 2, "sub_matrix is only applicable to 2D arrays");
         let cols = self.shape[1];
@@ -419,12 +442,13 @@ impl NDArray {
         Self::new(data, vec![row_end - row_start, col_end - col_start])
     }
 
-        /// Sets a specific element in the array
+    /// Sets a specific element in the array
     ///
     /// # Arguments
     ///
     /// * `index` - The index of the element to set.
     /// * `value` - The value to set the element to.
+    #[allow(dead_code)]
     pub fn set(&mut self, index: usize, value: f64) {
         self.data[index] = value;
     }
@@ -436,6 +460,7 @@ impl NDArray {
     /// * `start` - The starting index of the range.
     /// * `end` - The ending index of the range (exclusive).
     /// * `value` - The value to set the elements to.
+    #[allow(dead_code)]
     pub fn set_range(&mut self, start: usize, end: usize, value: f64) {
         for i in start..end {
             self.data[i] = value;
@@ -447,6 +472,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray that is a copy of the original.
+    #[allow(dead_code)]
     pub fn copy(&self) -> Self {
         Self::new(self.data.clone(), self.shape.clone())
     }
@@ -461,6 +487,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A slice of f64 values representing the specified view.
+    #[allow(dead_code)]
     pub fn view(&self, start: usize, end: usize) -> &[f64] {
         &self.data[start..end]
     }
@@ -475,6 +502,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A mutable slice of f64 values representing the specified view.
+    #[allow(dead_code)]
     pub fn view_mut(&mut self, start: usize, end: usize) -> &mut [f64] {
         &mut self.data[start..end]
     }
@@ -490,6 +518,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The element at the specified row and column.
+    #[allow(dead_code)]
     pub fn get_2d(&self, row: usize, col: usize) -> f64 {
         assert_eq!(self.ndim(), 2, "get_2d is only applicable to 2D arrays");
         let cols = self.shape[1];
@@ -503,13 +532,14 @@ impl NDArray {
     /// * `row` - The row index of the element.
     /// * `col` - The column index of the element.
     /// * `value` - The value to set the element to.
+    #[allow(dead_code)]
     pub fn set_2d(&mut self, row: usize, col: usize, value: f64) {
         assert_eq!(self.ndim(), 2, "set_2d is only applicable to 2D arrays");
         let cols = self.shape[1];
         self.data[row * cols + col] = value;
     }
 
-        /// Adds a new axis to the array at the specified position
+    /// Adds a new axis to the array at the specified position
     ///
     /// # Arguments
     ///
@@ -518,6 +548,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with an additional axis.
+    #[allow(dead_code)]
     pub fn new_axis(&self, axis: usize) -> Self {
         let mut new_shape = self.shape.clone();
         new_shape.insert(axis, 1);
@@ -533,6 +564,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with expanded dimensions.
+    #[allow(dead_code)]
     pub fn expand_dims(&self, axis: usize) -> Self {
         self.new_axis(axis)
     }
@@ -546,6 +578,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A vector of boolean values indicating whether each element is greater than the threshold.
+    #[allow(dead_code)]
     pub fn greater_than(&self, threshold: f64) -> Vec<bool> {
         self.data.iter().map(|&x| x > threshold).collect()
     }
@@ -559,6 +592,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray containing only the elements that satisfy the condition.
+    #[allow(dead_code)]
     pub fn filter(&self, condition: impl Fn(&f64) -> bool) -> Self {
         let data: Vec<f64> = self.data.iter().cloned().filter(condition).collect();
         Self::from_vec(data)
@@ -570,6 +604,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A string representing the data type of the elements.
+    #[allow(dead_code)]
     pub fn dtype(&self) -> &'static str {
         "f64" // Since we're using f64 for all elements
     }
@@ -579,6 +614,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The total number of elements in the array.
+    #[allow(dead_code)]
     pub fn size(&self) -> usize {
         self.data.len()
     }
@@ -588,6 +624,7 @@ impl NDArray {
     /// # Returns
     ///
     /// The index of the minimum value.
+    #[allow(dead_code)]
     pub fn argmin(&self) -> usize {
         self.data.iter().enumerate().min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
     }
@@ -602,6 +639,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray containing the specified slice.
+    #[allow(dead_code)]
     pub fn slice(&self, start: usize, end: usize) -> Self {
         let data = self.data[start..end].to_vec();
         Self::from_vec(data)

@@ -1,5 +1,5 @@
 use crate::nab_array::NDArray;
-use crate::nab_io::{save_nab, load_nab, savez_nab, loadz_nab};
+use crate::nab_io::{save_nab, load_nab};
 
 
 impl NDArray {
@@ -13,6 +13,7 @@ impl NDArray {
     /// # Returns
     ///
     /// A tuple containing ((train_images, train_labels), (test_images, test_labels))
+    #[allow(dead_code)]
     pub fn load_and_split_dataset(path: &str, train_percent: f64) -> std::io::Result<((NDArray, NDArray), (NDArray, NDArray))> {
         let images = load_nab(&format!("{}_images.nab", path))?;
         let labels = load_nab(&format!("{}_labels.nab", path))?;
@@ -50,6 +51,8 @@ impl NDArray {
     /// * `csv_path` - Path to the CSV file
     /// * `output_path` - Path where to save the .nab file
     /// * `shape` - Shape of the resulting array (e.g., [60000, 28, 28] for MNIST images)
+    #[allow(dead_code)]
+    #[allow(unused_variables)]
     pub fn csv_to_nab(csv_path: &str, output_path: &str, shape: Vec<usize>, skip_first_column: bool) -> std::io::Result<()> {
         let mut rdr = csv::Reader::from_path(csv_path)?;
         let mut data = Vec::new();
@@ -145,9 +148,11 @@ impl NDArray {
 
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
     use super::*;
     use std::io;
+    use crate::nab_io::{savez_nab, loadz_nab};
 
     #[test]
     fn test_save_and_load_nab() -> std::io::Result<()> {
