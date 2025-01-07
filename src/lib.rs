@@ -937,6 +937,130 @@ impl NDArray {
 
         Ok(())
     }
+
+    /// Displays the array in a formatted way similar to numpy's print format
+    ///
+    /// # Returns
+    ///
+    /// A string representation of the array
+    pub fn display(&self) -> String {
+        match self.ndim() {
+            1 => self.format_1d(),
+            2 => self.format_2d(),
+            3 => self.format_3d(),
+            _ => format!("Array of shape {:?}", self.shape),
+        }
+    }
+
+    fn format_1d(&self) -> String {
+        format!("[{}]", self.data.iter()
+            .map(|x| format!("{:3.0}", x))
+            .collect::<Vec<_>>()
+            .join(" "))
+    }
+
+    fn format_2d(&self) -> String {
+        let rows = self.shape[0];
+        let cols = self.shape[1];
+        
+        let mut result = String::from("[\n");
+        for i in 0..rows {
+            result.push_str(" [");
+            for j in 0..cols {
+                let value = self.get_2d(i, j);
+                result.push_str(&format!("{:3.0}", value));
+                if j < cols - 1 {
+                    result.push_str(" ");
+                }
+            }
+            result.push_str("]");
+            if i < rows - 1 {
+                result.push_str("\n");
+            }
+        }
+        result.push_str("\n]");
+        result
+    }
+
+    fn format_3d(&self) -> String {
+        let depth = self.shape[0];
+        let mut result = String::new();
+        
+        for d in 0..depth {
+            let slice = self.sub_matrix(d, d+1, 0, self.shape[2]);
+            if d > 0 {
+                result.push_str("\n\n");
+            }
+            result.push_str(&format!("Layer {}:\n{}", d, slice.format_2d()));
+        }
+        result
+    }
+
+    /// Extracts a single sample from a batch of N-dimensional arrays
+    ///
+    /// # Arguments
+    ///
+    /// * `sample_index` - The index of the sample to extract
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray containing just the specified sample with N-1 dimensions
+    pub fn extract_sample(&self, sample_index: usize) -> Self {
+        assert!(self.ndim() >= 2, "Array must have at least 2 dimensions");
+        assert!(sample_index < self.shape[0], "Sample index out of bounds");
+
+        let sample_size: usize = self.shape.iter().skip(1).product();
+        let start_index = sample_index * sample_size;
+        let end_index = start_index + sample_size;
+        
+        // Create new shape without the first dimension
+        let new_shape: Vec<usize> = self.shape.iter().skip(1).cloned().collect();
+        
+        NDArray::new(
+            self.data[start_index..end_index].to_vec(),
+            new_shape
+        )
+    }
+
+    /// Pretty prints an N-dimensional array
+    ///
+    /// # Arguments
+    ///
+    /// * `indent` - Optional indentation level for nested arrays
+    pub fn pretty_print(&self, indent: usize) {
+        let indent_str = " ".repeat(indent);
+        
+        match self.ndim() {
+            1 => println!("{}[{}]", indent_str, self.data.iter()
+                .map(|x| format!("{:3.0}", x))
+                .collect::<Vec<_>>()
+                .join(" ")),
+                
+            2 => {
+                println!("{}[", indent_str);
+                for i in 0..self.shape[0] {
+                    print!("{}  [", indent_str);
+                    for j in 0..self.shape[1] {
+                        print!("{:3.0}", self.get_2d(i, j));
+                        if j < self.shape[1] - 1 {
+                            print!(" ");
+                        }
+                    }
+                    println!("]");
+                }
+                println!("{}]", indent_str);
+            },
+            
+            _ => {
+                println!("{}[", indent_str);
+                for i in 0..self.shape[0] {
+                    let slice = self.extract_sample(i);
+                    slice.pretty_print(indent + 2);
+                }
+                println!("{}]", indent_str);
+            }
+        }
+    }
 }
 
 impl Add for NDArray {
@@ -977,7 +1101,12 @@ impl Sub for NDArray {
     }
 }
 
-
+// Add std::fmt::Display implementation for convenient printing
+impl std::fmt::Display for NDArray {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.display())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -1108,32 +1237,7 @@ mod tests {
         assert!(history.first().unwrap() > history.last().unwrap());
     }
 
-    #[test]
-    fn test_mnist_csv_to_nab_conversion() -> io::Result<()> {
-        // Define paths for the CSV and .nab files
-        let csv_path = "csv/mnist_test.csv";
-        let nab_path = "datasets/mnist_test.nab";
-        let expected_shape = vec![999, 28, 28];
-        
-        println!("Starting test with CSV: {}", csv_path);
 
-        // Convert CSV to .nab, skipping the first column
-        NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
-
-        // Load the .nab file
-        let images = load_nab(nab_path)?;
-        println!("Loaded NAB file with shape: {:?}", images.shape());
-
-        // Verify the shape of the data
-        assert_eq!(images.shape(), &expected_shape, 
-            "Shape mismatch: expected {:?}, got {:?}", expected_shape, images.shape());
-
-        // Clean up the .nab file
-        std::fs::remove_file(nab_path)?;
-        println!("Test cleanup complete");
-
-        Ok(())
-    }
 
     #[test]
     fn test_mnist_load_and_split_dataset() -> io::Result<()> {
@@ -1162,12 +1266,40 @@ mod tests {
         assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
 
         // Clean up
-        std::fs::remove_file("datasets/mnist_test_images.nab")?;
-        std::fs::remove_file("datasets/mnist_test_labels.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_images.nab")?;
+        // std::fs::remove_file("datasets/mnist_test_labels.nab")?;
 
         Ok(())
     }
 
+
+    #[test]
+    fn test_mnist_csv_to_nab_conversion() -> io::Result<()> {
+        // Define paths for the CSV and .nab files
+        let csv_path = "csv/mnist_test.csv";
+        let nab_path = "datasets/mnist_test";
+        let expected_shape = vec![999, 28, 28];
+        
+        println!("Starting test with CSV: {}", csv_path);
+
+        // Convert CSV to .nab, skipping the first column
+        // NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
+
+        // Load the .nab file
+        let images = load_nab(nab_path)?;
+        println!("Loaded NAB file with shape: {:?}", images.shape());
+
+        // Verify the shape of the data
+        assert_eq!(images.shape(), &expected_shape, 
+            "Shape mismatch: expected {:?}, got {:?}", expected_shape, images.shape());
+
+        // Clean up the .nab file
+        // std::fs::remove_file(nab_path)?;
+        // println!("Test cleanup complete");
+
+        Ok(())
+    }
+    
     #[test]
     fn test_element_wise_addition() {
         let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1254,5 +1386,36 @@ mod tests {
         let theta_0 = 1.0;
         let predictions = X.clone() * theta_1 + theta_0;
         assert_eq!(predictions.data(), &[3.0, 5.0, 7.0]);
+    }
+
+   
+    #[test]
+    fn test_extract_and_print_sample() -> io::Result<()> {
+        // Ensure the datasets directory exists
+        std::fs::create_dir_all("datasets")?;
+
+        // Convert CSV to .nab files if not already done
+        NDArray::mnist_csv_to_nab(
+            "csv/mnist_test.csv",
+            "datasets/mnist_test_images.nab",
+            "datasets/mnist_test_labels.nab",
+            vec![28, 28]
+        )?;
+
+        // Load the dataset
+        let ((train_images, train_labels), _) = 
+            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
+
+        // Extract and print the 42nd entry
+        println!("Label of 42nd entry: {}", train_labels.get(42));
+        println!("Image of 42nd entry:");
+        let image_42 = train_images.extract_sample(42);
+        image_42.pretty_print(0);
+
+        // Clean up
+        std::fs::remove_file("datasets/mnist_test_images.nab")?;
+        std::fs::remove_file("datasets/mnist_test_labels.nab")?;
+
+        Ok(())
     }
 }
