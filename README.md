@@ -13,16 +13,6 @@ Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional arra
 - **Linear Regression**: Perform linear regression using gradient descent.
 - **MNIST Dataset Handling**: Convert and load MNIST data for machine learning tasks.
 
-## Getting Started
-
-### Installation
-
-Add the following to your `Cargo.toml`:
-
-```toml
-[dependencies]
-nabla-ml = "0.2.0"
-```
 
 ### Usage
 
@@ -108,6 +98,23 @@ let ((train_images, train_labels), (test_images, test_labels)) =
 ```
 
 Mnist dataset in .nab format can be found [here](https://github.com/enricozanardo/nabla_datasets/tree/main/mnist)
+
+#### One-Hot Encoding
+
+```rust
+use nabla_ml::NDArray;
+
+// Convert labels to one-hot encoded format
+let labels = vec![0, 1, 2, 1, 0];
+let one_hot = NDArray::one_hot_encode(&labels);
+
+// Result will be a 2D NDArray:
+// [1, 0, 0]  # Class 0
+// [0, 1, 0]  # Class 1
+// [0, 0, 1]  # Class 2
+// [0, 1, 0]  # Class 1
+// [1, 0, 0]  # Class 0
+```
 
 ![ReLU](./docs/relu.png)
 ![Leaky ReLU](./docs/leaky_relu.png)

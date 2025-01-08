@@ -672,6 +672,29 @@ impl NDArray {
         Self::from_vec(data)
     }
 
+    /// Converts a vector of integer labels into a one-hot encoded NDArray
+    ///
+    /// # Arguments
+    ///
+    /// * `labels` - A slice of integer labels to encode
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with one-hot encoded labels where each row corresponds to one label
+    pub fn one_hot_encode(labels: &[usize]) -> Self {
+        // Find the number of classes by getting the maximum label value + 1
+        let num_classes = labels.iter()
+            .max()
+            .map_or(0, |&max| max + 1);
+        
+        let mut data = vec![0.0; labels.len() * num_classes];
+        
+        for (i, &label) in labels.iter().enumerate() {
+            data[i * num_classes + label] = 1.0;
+        }
+        
+        NDArray::new(data, vec![labels.len(), num_classes])
+    }
 
 }
 
@@ -794,4 +817,27 @@ mod tests {
         assert_eq!(predictions.data(), &[3.0, 5.0, 7.0]);
     }
 
+
+    #[test]
+    fn test_one_hot_encode() {
+        let labels = vec![0, 1, 2, 1, 0];
+        let one_hot = NDArray::one_hot_encode(&labels);
+        
+        // Expected result:
+        // [1, 0, 0]  # Class 0
+        // [0, 1, 0]  # Class 1
+        // [0, 0, 1]  # Class 2
+        // [0, 1, 0]  # Class 1
+        // [1, 0, 0]  # Class 0
+        let expected = vec![
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+            0.0, 1.0, 0.0,
+            1.0, 0.0, 0.0
+        ];
+        
+        assert_eq!(one_hot.shape(), &[5, 3]);
+        assert_eq!(one_hot.data(), &expected);
+    }
 } 
