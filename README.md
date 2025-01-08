@@ -105,7 +105,7 @@ Mnist dataset in .nab format can be found [here](https://github.com/enricozanard
 use nabla_ml::NDArray;
 
 // Convert labels to one-hot encoded format
-let labels = vec![0, 1, 2, 1, 0];
+let labels = NDArray::from_vec(vec![-1.0, 0.0, 1.0, 0.0, -1.0]);
 let one_hot = NDArray::one_hot_encode(&labels);
 
 // Result will be a 2D NDArray:
