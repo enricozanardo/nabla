@@ -672,28 +672,48 @@ impl NDArray {
         Self::from_vec(data)
     }
 
-    /// Converts a vector of integer labels into a one-hot encoded NDArray
+    /// Converts an NDArray of labels into a one-hot encoded NDArray
     ///
     /// # Arguments
     ///
-    /// * `labels` - A slice of integer labels to encode
+    /// * `labels` - An NDArray containing numerical labels
     ///
     /// # Returns
     ///
     /// A new NDArray with one-hot encoded labels where each row corresponds to one label
-    pub fn one_hot_encode(labels: &[usize]) -> Self {
-        // Find the number of classes by getting the maximum label value + 1
-        let num_classes = labels.iter()
-            .max()
-            .map_or(0, |&max| max + 1);
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input contains non-integer values
+    pub fn one_hot_encode(labels: &NDArray) -> Self {
+        // Verify that all values are integers
+        for &value in labels.data() {
+            // Check if the value is effectively an integer
+            if value.fract() != 0.0 {
+                panic!("All values must be integers for one-hot encoding");
+            }
+        }
+
+        // Convert values to integers and find unique classes
+        let labels_int: Vec<i32> = labels.data()
+            .iter()
+            .map(|&x| x as i32)
+            .collect();
+
+        // Find min and max to determine the range of classes
+        let min_label = labels_int.iter().min().unwrap();
+        let max_label = labels_int.iter().max().unwrap();
+        let num_classes = (max_label - min_label + 1) as usize;
         
-        let mut data = vec![0.0; labels.len() * num_classes];
+        let mut data = vec![0.0; labels_int.len() * num_classes];
         
-        for (i, &label) in labels.iter().enumerate() {
-            data[i * num_classes + label] = 1.0;
+        // Shift indices by min_label to handle negative values
+        for (i, &label) in labels_int.iter().enumerate() {
+            let shifted_label = (label - min_label) as usize;
+            data[i * num_classes + shifted_label] = 1.0;
         }
         
-        NDArray::new(data, vec![labels.len(), num_classes])
+        NDArray::new(data, vec![labels_int.len(), num_classes])
     }
 
 }
@@ -820,15 +840,9 @@ mod tests {
 
     #[test]
     fn test_one_hot_encode() {
-        let labels = vec![0, 1, 2, 1, 0];
+        let labels = NDArray::from_vec(vec![0.0, 1.0, 2.0, 1.0, 0.0]);
         let one_hot = NDArray::one_hot_encode(&labels);
         
-        // Expected result:
-        // [1, 0, 0]  # Class 0
-        // [0, 1, 0]  # Class 1
-        // [0, 0, 1]  # Class 2
-        // [0, 1, 0]  # Class 1
-        // [1, 0, 0]  # Class 0
         let expected = vec![
             1.0, 0.0, 0.0,
             0.0, 1.0, 0.0,
@@ -839,5 +853,29 @@ mod tests {
         
         assert_eq!(one_hot.shape(), &[5, 3]);
         assert_eq!(one_hot.data(), &expected);
+    }
+
+    #[test]
+    fn test_one_hot_encode_negative() {
+        let labels = NDArray::from_vec(vec![-1.0, 0.0, 1.0, 0.0, -1.0]);
+        let one_hot = NDArray::one_hot_encode(&labels);
+        
+        let expected = vec![
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+            0.0, 1.0, 0.0,
+            1.0, 0.0, 0.0
+        ];
+        
+        assert_eq!(one_hot.shape(), &[5, 3]);
+        assert_eq!(one_hot.data(), &expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "All values must be integers")]
+    fn test_one_hot_encode_non_integer() {
+        let labels = NDArray::from_vec(vec![0.0, 1.5, 2.0]);
+        NDArray::one_hot_encode(&labels);
     }
 } 
