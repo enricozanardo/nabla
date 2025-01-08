@@ -1,5 +1,25 @@
 use crate::nab_array::NDArray;
 
+pub trait Loss {
+    fn forward(&self, predictions: &NDArray, targets: &NDArray) -> f64;
+    fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray;
+}
+
+pub struct CategoricalCrossentropy;
+
+impl Loss for CategoricalCrossentropy {
+    fn forward(&self, y_pred: &NDArray, y_true: &NDArray) -> f64 {
+        // Compute cross-entropy loss
+        let epsilon = 1e-8;
+        let clipped_pred = y_pred.clip(epsilon, 1.0 - epsilon);
+        -y_true.multiply(&clipped_pred.log()).sum() / y_true.shape()[0] as f64
+    }
+
+    fn backward(&self, y_pred: &NDArray, y_true: &NDArray) -> NDArray {
+        NDArray::crossentropy_nabla(y_pred, y_true)
+    }
+}
+
 impl NDArray {
     /// Calculates the Mean Squared Error (MSE) between two arrays
     ///

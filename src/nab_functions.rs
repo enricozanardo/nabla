@@ -1,4 +1,5 @@
 use crate::nab_array::NDArray;
+use crate::nabla::ActivationType;
 
 impl NDArray {
 
@@ -50,6 +51,48 @@ impl NDArray {
         NDArray::new(data, self.shape().to_vec())
     }
 
+    /// Applies the specified activation function to the array
+    pub fn activate(&self, activation_type: ActivationType) -> Self {
+        match activation_type {
+            ActivationType::Sigmoid => self.sigmoid(),
+            ActivationType::ReLU => self.relu(),
+            ActivationType::LeakyReLU => self.leaky_relu(0.01),
+            ActivationType::Softmax => self.softmax(),
+            ActivationType::Tanh => self.tanh(),
+        }
+    }
+
+    /// Applies the softmax function to the array
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with the softmax function applied
+    pub fn softmax(&self) -> Self {
+        assert!(self.ndim() == 1 || self.ndim() == 2, "Softmax is only defined for 1D or 2D arrays");
+
+        let exp = self.exp();
+        
+        if self.ndim() == 1 {
+            // For 1D arrays
+            let sum = exp.sum();
+            exp.divide_scalar(sum)
+        } else {
+            // For 2D arrays
+            let (rows, cols) = (self.shape[0], self.shape[1]);
+            let sum = exp.sum_axis(1);  // Shape: [rows, 1]
+            
+            // Create broadcasted sum array
+            let mut broadcasted_sum = vec![0.0; rows * cols];
+            for i in 0..rows {
+                for j in 0..cols {
+                    broadcasted_sum[i * cols + j] = sum.data()[i];
+                }
+            }
+            let sum_array = NDArray::new(broadcasted_sum, self.shape.clone());
+            
+            exp.divide(&sum_array)
+        }
+    }
 }
 
 
@@ -90,4 +133,36 @@ mod tests {
         assert!((tanh_arr.data()[2] + 0.7616).abs() < 1e-4);
     }
 
+    #[test]
+    fn test_softmax() {
+        let input = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 0.5],
+            vec![1.0, 1.0, 1.0],
+        ]);
+        let softmax = input.softmax();
+        
+        // Check that outputs sum to 1 for each row
+        let sum_row_1: f64 = softmax.data()[0..3].iter().sum();
+        let sum_row_2: f64 = softmax.data()[3..6].iter().sum();
+        assert!((sum_row_1 - 1.0).abs() < 1e-6);
+        assert!((sum_row_2 - 1.0).abs() < 1e-6);
+        
+        // Check that all values are between 0 and 1
+        assert!(softmax.data().iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+
+    #[test]
+    fn test_sum_axis() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0],
+        ]);
+        let result = arr.sum_axis(0);
+        assert_eq!(result.data(), &[5.0, 7.0, 9.0]); // Sum along columns
+        assert_eq!(result.shape(), &[1, 3]); // Shape should be [1, 3]
+
+        let result = arr.sum_axis(1);
+        assert_eq!(result.data(), &[6.0, 15.0]); // Sum along rows
+        assert_eq!(result.shape(), &[2, 1]); // Shape should be [2, 1]
+    }
 }
