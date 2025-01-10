@@ -34,11 +34,8 @@ A lightweight neural network library implemented in Rust, focusing on simplicity
 ### Activation Functions
 
 - ReLU (Rectified Linear Unit)
-  ![ReLU](docs/relu.png)
 - Leaky ReLU
-  ![Leaky ReLU](docs/leaky_relu.png)
 - Sigmoid
-  ![Sigmoid](docs/sigmoid.png)
 - Softmax (for classification)
 
 ### Optimizers
