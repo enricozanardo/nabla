@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use crate::nab_array::NDArray;
 use crate::nab_activations::Activation;
 
@@ -9,6 +7,9 @@ pub trait Layer {
     fn update(&mut self, learning_rate: f64);
     fn get_weights_mut(&mut self) -> &mut NDArray;
     fn get_gradients(&self) -> Option<(NDArray, NDArray)>;
+    fn output_shape(&self) -> Vec<usize>;
+    fn parameter_count(&self) -> usize;
+    fn layer_type(&self) -> String;
 }
 
 pub struct Dense {
@@ -21,7 +22,9 @@ pub struct Dense {
 impl Dense {
     pub fn new(input_size: usize, output_size: usize) -> Self {
         Dense {
+            // Initialize weights with small random values
             weights: NDArray::randn_2d(input_size, output_size).multiply_scalar(0.01),
+            // Initialize biases to zero
             biases: NDArray::zeros(vec![1, output_size]),
             input: None,
             gradients: None,
@@ -31,14 +34,21 @@ impl Dense {
 
 impl Layer for Dense {
     fn forward(&mut self, input: &NDArray) -> NDArray {
-        // Ensure input is compatible with weights
-        assert_eq!(input.shape()[1], self.weights.shape()[0], "Input shape must match weights shape");
-
-        // Store input for backprop
+        println!("Dense forward pass:");
+        println!("  Input shape: {:?}", input.shape());
+        println!("  Weights shape: {:?}", self.weights.shape());
+        println!("  Biases shape: {:?}", self.biases.shape());
+        
         self.input = Some(input.clone());
-
-        // Compute output = input * weights + biases
-        input.dot(&self.weights).add(&self.biases)
+        let output = input.dot(&self.weights);
+        println!("  After dot product shape: {:?}", output.shape());
+        
+        // No need to reshape biases - they're already [1, output_size]
+        println!("  Adding biases with shape: {:?}", self.biases.shape());
+        let final_output = output + &self.biases;
+        println!("  Final output shape: {:?}", final_output.shape());
+        
+        final_output
     }
 
     fn backward(&mut self, gradient: &NDArray) -> NDArray {
@@ -69,6 +79,19 @@ impl Layer for Dense {
     fn get_gradients(&self) -> Option<(NDArray, NDArray)> {
         self.gradients.as_ref().map(|(w, b)| (w.clone(), b.clone()))
     }
+
+    fn output_shape(&self) -> Vec<usize> {
+        vec![self.weights.shape()[1]]  // Output size is determined by number of units
+    }
+    
+    fn parameter_count(&self) -> usize {
+        let (input_size, output_size) = (self.weights.shape()[0], self.weights.shape()[1]);
+        (input_size * output_size) + output_size  // weights + biases
+    }
+    
+    fn layer_type(&self) -> String {
+        "Dense".to_string()
+    }
 }
 
 pub struct ActivationLayer {
@@ -84,11 +107,15 @@ impl ActivationLayer {
 
 impl Layer for ActivationLayer {
     fn forward(&mut self, input: &NDArray) -> NDArray {
+        // Store input for backward pass
+        self.input = Some(input.clone());
         self.activation.forward(input)
     }
 
     fn backward(&mut self, gradient: &NDArray) -> NDArray {
-        self.activation.backward(gradient, &self.input.as_ref().unwrap())
+        // Get input from stored value
+        let input = self.input.as_ref().expect("No input found. Forward pass must be called before backward pass");
+        self.activation.backward(gradient, input)
     }
 
     fn update(&mut self, _learning_rate: f64) {
@@ -101,5 +128,18 @@ impl Layer for ActivationLayer {
 
     fn get_gradients(&self) -> Option<(NDArray, NDArray)> {
         None
+    }
+
+    fn output_shape(&self) -> Vec<usize> {
+        // Activation layers don't change the shape
+        vec![]  // This will be the same as input shape
+    }
+    
+    fn parameter_count(&self) -> usize {
+        0  // Activation layers have no parameters
+    }
+    
+    fn layer_type(&self) -> String {
+        "Activation".to_string()
     }
 } 

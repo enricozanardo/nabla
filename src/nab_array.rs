@@ -138,30 +138,52 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the specified shape.
-    pub fn reshape(&self, mut new_shape: Vec<isize>) -> Self {
+    pub fn reshape(&self, new_shape: Vec<isize>) -> Self {
         let total_elements = self.data.len();
         let mut inferred_index = None;
-        let mut specified_size = 1;
+        let mut known_elements: usize = 1;
 
+        // First pass: calculate product of known dimensions
         for (i, &dim) in new_shape.iter().enumerate() {
             if dim == -1 {
                 if inferred_index.is_some() {
                     panic!("Only one dimension can be inferred");
                 }
                 inferred_index = Some(i);
+            } else if dim <= 0 {
+                panic!("Dimensions must be positive (except -1 for inference)");
             } else {
-                specified_size *= dim as usize;
+                known_elements = known_elements.checked_mul(dim as usize)
+                    .expect("Shape multiplication overflow");
             }
         }
 
-        if let Some(index) = inferred_index {
-            new_shape[index] = (total_elements / specified_size) as isize;
+        // Calculate the inferred dimension
+        let mut final_shape: Vec<usize> = Vec::with_capacity(new_shape.len());
+        if let Some(idx) = inferred_index {
+            // Ensure we can evenly divide the total elements
+            assert!(total_elements % known_elements == 0, 
+                "Cannot infer dimension that evenly divides total elements");
+            
+            for (i, &dim) in new_shape.iter().enumerate() {
+                if i == idx {
+                    final_shape.push(total_elements / known_elements);
+                } else {
+                    final_shape.push(dim as usize);
+                }
+            }
+        } else {
+            final_shape = new_shape.iter()
+                .map(|&x| x as usize)
+                .collect();
         }
 
-        let new_shape_usize: Vec<usize> = new_shape.iter().map(|&x| x as usize).collect();
-        assert_eq!(total_elements, new_shape_usize.iter().product::<usize>(), "New shape must have the same number of elements as the original array");
+        // Verify total size matches
+        let new_total = final_shape.iter().product();
+        assert_eq!(total_elements, new_total, 
+            "New shape must have the same number of elements as the original array");
 
-        Self::new(self.data.clone(), new_shape_usize)
+        Self::new(self.data.clone(), final_shape)
     }
 
      /// Returns the maximum value in the array
@@ -179,10 +201,54 @@ impl NDArray {
     /// # Returns
     ///
     /// The index of the maximum value.
-    #[allow(dead_code)]
-    pub fn argmax(&self) -> usize {
-        self.data.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
+    // #[allow(dead_code)]
+    // pub fn argmax(&self) -> usize {
+    //     self.data.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap()).map(|(i, _)| i).unwrap()
+    // }
+
+    /// Returns the indices of maximum values
+    /// For 1D arrays: returns a single index
+    /// For 2D arrays: returns indices along the specified axis
+    pub fn argmax(&self, axis: Option<usize>) -> Vec<usize> {
+        println!("Debug: Array shape: {:?}, ndim: {}, axis: {:?}", 
+            self.shape, self.ndim(), axis);
+            
+        match axis {
+            None => {
+                println!("Debug: Using global argmax");
+                vec![self.data.iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .map(|(idx, _)| idx)
+                    .unwrap()]
+            },
+            Some(1) => {
+                if self.ndim() != 2 {
+                    println!("Debug: Expected 2D array for axis=1, got {}D array", self.ndim());
+                    panic!("Array must be 2D when using axis=1");
+                }
+                
+                let rows = self.shape[0];
+                let cols = self.shape[1];
+                println!("Debug: Processing 2D array with shape [{}, {}]", rows, cols);
+                
+                (0..rows).map(|i| {
+                    let start = i * cols;
+                    let row_slice = &self.data[start..start + cols];
+                    row_slice.iter()
+                        .enumerate()
+                        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                        .map(|(idx, _)| idx)
+                        .unwrap()
+                }).collect()
+            },
+            Some(ax) => {
+                println!("Debug: Unsupported axis: {}", ax);
+                panic!("Only axis=1 (row-wise) is supported for argmax")
+            }
+        }
     }
+
 
     /// Returns the minimum value in the array
     ///
@@ -672,8 +738,27 @@ impl NDArray {
     /// A new NDArray containing the specified slice.
     #[allow(dead_code)]
     pub fn slice(&self, start: usize, end: usize) -> Self {
-        let data = self.data[start..end].to_vec();
-        Self::from_vec(data)
+        println!("Slicing array:");
+        println!("  Original shape: {:?}", self.shape);
+        println!("  Start: {}, End: {}", start, end);
+
+        let mut new_shape = self.shape.clone();
+        new_shape[0] = end - start;
+
+        if self.ndim() == 2 {
+            let cols = self.shape[1];
+            let start_idx = start * cols;
+            let end_idx = end * cols;
+            println!("  2D array: keeping columns, new shape will be: {:?}", new_shape);
+            
+            let sliced_data = self.data[start_idx..end_idx].to_vec();
+            println!("  Sliced data length: {}", sliced_data.len());
+            
+            NDArray::new(sliced_data, new_shape)
+        } else {
+            println!("  1D array: simple slice");
+            NDArray::new(self.data[start..end].to_vec(), new_shape)
+        }
     }
 
     /// Converts an NDArray of labels into a one-hot encoded NDArray
@@ -946,6 +1031,26 @@ impl NDArray {
     pub fn sum(&self) -> f64 {
         self.data.iter().sum()
     }
+
+    pub fn pad_to_size(&self, target_size: usize) -> Self {
+        if self.shape[0] >= target_size {
+            return self.clone();
+        }
+
+        let mut new_shape = self.shape.clone();
+        new_shape[0] = target_size;
+        let total_size: usize = new_shape.iter().product();
+        
+        // Create new data vector with zeros
+        let mut new_data = vec![0.0; total_size];
+        
+        // Copy existing data
+        let row_size = self.shape.iter().skip(1).product::<usize>();
+        let existing_data_size = self.shape[0] * row_size;
+        new_data[..existing_data_size].copy_from_slice(&self.data);
+        
+        NDArray::new(new_data, new_shape)
+    }
 }
 
 impl Add for NDArray {
@@ -962,8 +1067,42 @@ impl Add<&NDArray> for NDArray {
     type Output = Self;
 
     fn add(self, other: &NDArray) -> Self::Output {
-        assert_eq!(self.shape, other.shape, "Shapes must match for element-wise addition");
-        let data = self.data.iter().zip(other.data.iter()).map(|(a, b)| a + b).collect();
+        println!("Adding arrays:");
+        println!("  Left shape: {:?}", self.shape);
+        println!("  Right shape: {:?}", other.shape);
+
+        // Handle broadcasting for shapes like [N, M] + [1, M]
+        if self.shape.len() == other.shape.len() && 
+           other.shape[0] == 1 && 
+           self.shape[1] == other.shape[1] {
+            
+            println!("  Performing broadcasting addition");
+            let mut result_data = Vec::with_capacity(self.data.len());
+            let cols = other.shape[1];
+            
+            // Add the broadcasted row to each row of self
+            for i in 0..self.shape[0] {
+                for j in 0..cols {
+                    result_data.push(self.data[i * cols + j] + other.data[j]);
+                }
+            }
+            
+            let result = NDArray::new(result_data, self.shape.clone());
+            println!("  Result shape: {:?}", result.shape);
+            return result;
+        }
+        
+        // Regular element-wise addition for matching shapes
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise addition\n  left: {:?}\n right: {:?}", 
+                   self.shape, other.shape);
+        }
+
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a + b)
+            .collect();
+
         NDArray::new(data, self.shape.clone())
     }
 }
@@ -1002,6 +1141,14 @@ impl Add<f64> for &NDArray {
     fn add(self, scalar: f64) -> Self::Output {
         let data: Vec<f64> = self.data.iter().map(|&x| x + scalar).collect();
         NDArray::new(data, self.shape.clone())
+    }
+}
+
+impl Mul<&NDArray> for f64 {
+    type Output = NDArray;
+
+    fn mul(self, rhs: &NDArray) -> NDArray {
+        rhs.multiply_scalar(self)
     }
 }
 

@@ -5,16 +5,35 @@ pub trait Activation {
     fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray;
 }
 
-pub struct Sigmoid;
+pub struct ReLU;
 pub struct Softmax;
+pub struct Sigmoid;
 
-impl Activation for Sigmoid {
+impl Default for ReLU {
+    fn default() -> Self {
+        ReLU
+    }
+}
+
+impl Default for Softmax {
+    fn default() -> Self {
+        Softmax
+    }
+}
+
+impl Default for Sigmoid {
+    fn default() -> Self {
+        Sigmoid
+    }
+}
+
+impl Activation for ReLU {
     fn forward(&self, input: &NDArray) -> NDArray {
-        input.sigmoid()
+        input.relu()
     }
 
     fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray {
-        NDArray::activation_nabla(gradient, output, crate::nabla::ActivationType::Sigmoid)
+        NDArray::activation_nabla(gradient, output, crate::nabla::ActivationType::ReLU)
     }
 }
 
@@ -25,5 +44,15 @@ impl Activation for Softmax {
     
     fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray {
         NDArray::activation_nabla(gradient, output, crate::nabla::ActivationType::Softmax)
+    }
+}
+
+impl Activation for Sigmoid {
+    fn forward(&self, input: &NDArray) -> NDArray {
+        input.sigmoid()
+    }
+    
+    fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray {
+        NDArray::activation_nabla(gradient, output, crate::nabla::ActivationType::Sigmoid)
     }
 } 

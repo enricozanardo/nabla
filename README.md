@@ -1,18 +1,88 @@
-# Nabla-ML
+# Nabla ML
 
-Nabla-ML is a Rust library inspired by NumPy, providing a multi-dimensional array implementation with various mathematical and array manipulation functionalities.
+A lightweight neural network library implemented in Rust, focusing on simplicity and educational purposes. It is inspired by NumPy, providing a multi-dimensional array implementation with various mathematical and array manipulation functionalities.
 
 ## Features
 
-- **Array Creation**: Create 1D and 2D arrays using vectors and matrices.
-- **Random Arrays**: Generate arrays with random numbers, including uniform and normal distributions.
-- **Arithmetic Operations**: Perform element-wise addition, subtraction, multiplication, and division.
-- **Mathematical Functions**: Apply functions like square root, exponential, sine, cosine, logarithm, hyperbolic tangent, ReLU, Leaky ReLU, and Sigmoid to arrays.
-- **Array Reshaping**: Change the shape of arrays while maintaining data integrity.
-- **File I/O**: Save and load arrays in a compressed format.
-- **Linear Regression**: Perform linear regression using gradient descent.
-- **MNIST Dataset Handling**: Convert and load MNIST data for machine learning tasks.
+### Core Components
 
+- **NDArray**: A multi-dimensional array implementation supporting:
+  - Basic operations (add, subtract, multiply, divide)
+  - Broadcasting support for operations like [N, M] + [1, M]
+  - Shape manipulation (reshape, transpose)
+  - Matrix operations (dot product)
+  - Statistical operations (sum, mean)
+  - Element-wise operations (exp, log, sqrt)
+  - Padding functionality for batches
+
+  Moreover...
+    - Array Creation: Create 1D and 2D arrays using vectors and matrices.
+    - Random Arrays: Generate arrays with random numbers, including uniform and normal distributions.
+    - Arithmetic Operations: Perform element-wise addition, subtraction, multiplication, and division.
+    - Mathematical Functions: Apply functions like square root, exponential, sine, cosine, logarithm, hyperbolic tangent, ReLU, Leaky ReLU, and Sigmoid to arrays.
+    - Array Reshaping: Change the shape of arrays while maintaining data integrity.
+    - File I/O: Save and load arrays in a compressed format.
+    - Linear Regression: Perform linear regression using gradient descent.
+    - MNIST Dataset Handling: Convert and load MNIST data for machine learning tasks.
+
+
+- **Neural Network Layers**:
+  - Dense (Fully Connected) layers
+  - Activation layers
+  - Support for various activation functions
+
+### Activation Functions
+
+- ReLU (Rectified Linear Unit)
+  ![ReLU](docs/relu.png)
+- Leaky ReLU
+  ![Leaky ReLU](docs/leaky_relu.png)
+- Sigmoid
+  ![Sigmoid](docs/sigmoid.png)
+- Softmax (for classification)
+
+### Optimizers
+
+- Adam optimizer with configurable parameters:
+  - Learning rate
+  - Beta1 and Beta2 momentum parameters
+  - Epsilon for numerical stability
+  - Automatic moment vector shape handling
+
+### Training Features
+
+- Mini-batch training support
+- Automatic batch padding
+- Loss tracking
+- Accuracy metrics
+- Broadcasting for efficient computations
+
+## Example Usage
+
+```rust
+let mut model = Model::new()
+    .input(vec![784])  // For MNIST: 28x28 = 784 input features
+    .add_dense(32, Box::new(Sigmoid::default()))
+    .add_dense(32, Box::new(Sigmoid::default()))
+    .add_dense(10, Box::new(Softmax::default()))
+    .build();
+
+model.compile(
+    Box::new(Adam::default()), 
+    Box::new(CategoricalCrossentropy),
+    vec!["accuracy".to_string()]
+);
+
+// Train the model
+let history = model.fit(
+    &training_data, 
+    &training_labels, 
+    batch_size: 32, 
+    epochs: 10
+);
+
+model.summary();
+```
 
 ### Usage
 

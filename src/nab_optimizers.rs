@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use crate::nab_array::NDArray;
 
 pub trait Optimizer {
@@ -11,8 +9,8 @@ pub struct Adam {
     beta1: f64,
     beta2: f64,
     epsilon: f64,
-    m: Option<NDArray>,  // First moment
-    v: Option<NDArray>,  // Second moment
+    m: NDArray,  // First moment
+    v: NDArray,  // Second moment
     t: usize,           // Timestep
 }
 
@@ -23,49 +21,53 @@ impl Adam {
             beta1,
             beta2,
             epsilon,
-            m: None,
-            v: None,
-            t: 0,
+            t: 1,
+            m: NDArray::zeros(vec![1, 1]),  // Will be resized on first update
+            v: NDArray::zeros(vec![1, 1]),  // Will be resized on first update
         }
     }
 
     pub fn default() -> Self {
         Adam::new(0.001, 0.9, 0.999, 1e-8)
     }
+
+    fn ensure_moment_shapes(&mut self, shape: &[usize]) {
+        if self.m.shape() != shape {
+            println!("Initializing moment vectors with shape: {:?}", shape);
+            self.m = NDArray::zeros(shape.to_vec());
+            self.v = NDArray::zeros(shape.to_vec());
+        }
+    }
 }
 
 impl Optimizer for Adam {
-    fn update(&mut self, weights: &mut NDArray, gradients: &NDArray) {
-        self.t += 1;
-
-        // Initialize momentum and velocity if not exists
-        if self.m.is_none() {
-            self.m = Some(NDArray::zeros(weights.shape().to_vec()));
-            self.v = Some(NDArray::zeros(weights.shape().to_vec()));
-        }
-
-        let m = self.m.as_mut().unwrap();
-        let v = self.v.as_mut().unwrap();
+    fn update(&mut self, weights: &mut NDArray, gradients: &NDArray) -> () {
+        println!("Adam update:");
+        println!("  Weights shape: {:?}", weights.shape());
+        println!("  Gradients shape: {:?}", gradients.shape());
+        
+        // Ensure moment vectors have correct shape
+        self.ensure_moment_shapes(weights.shape());
 
         // Update biased first moment estimate
-        *m = m.multiply_scalar(self.beta1)
-            .add(&gradients.multiply_scalar(1.0 - self.beta1));
+        self.m = self.beta1 * &self.m + (1.0 - self.beta1) * gradients;
 
         // Update biased second raw moment estimate
-        *v = v.multiply_scalar(self.beta2)
-            .add(&gradients.multiply(&gradients).multiply_scalar(1.0 - self.beta2));
+        let squared_gradients = gradients.multiply(gradients);
+        self.v = self.beta2 * &self.v + (1.0 - self.beta2) * &squared_gradients;
 
         // Compute bias-corrected first moment estimate
-        let m_hat = m.divide_scalar(1.0 - self.beta1.powi(self.t as i32));
+        let m_hat = self.m.multiply_scalar(1.0 / (1.0 - self.beta1.powi(self.t as i32)));
 
         // Compute bias-corrected second raw moment estimate
-        let v_hat = v.divide_scalar(1.0 - self.beta2.powi(self.t as i32));
+        let v_hat = self.v.multiply_scalar(1.0 / (1.0 - self.beta2.powi(self.t as i32)));
 
         // Update parameters
-        let update = m_hat.divide(&v_hat.sqrt().add_scalar(self.epsilon))
-            .multiply_scalar(self.learning_rate);
-        
-        *weights = weights.subtract(&update);
+        let update = m_hat.divide(&(v_hat.sqrt() + self.epsilon));
+        *weights = weights.subtract(&update.multiply_scalar(self.learning_rate));
+
+        // Increment timestep after all computations
+        self.t += 1;
     }
 }
 
@@ -113,6 +115,7 @@ mod tests {
             optimizer.update(&mut weights, &gradients);
         }
 
-        assert_eq!(optimizer.t, 5, "Timestep should be incremented correctly");
+        // We start at t=1 and increment 5 times, so we expect t=6
+        assert_eq!(optimizer.t, 6, "Timestep should be incremented correctly");
     }
 } 
