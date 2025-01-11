@@ -21,11 +21,17 @@ pub struct Dense {
 
 impl Dense {
     pub fn new(input_size: usize, output_size: usize) -> Self {
+        // He initialization for ReLU
+        let scale = (2.0 / input_size as f64).sqrt();
+        
+        // Initialize weights with uniform distribution between -scale and scale
+        let weights = NDArray::randn_2d(input_size, output_size)
+            .multiply_scalar(scale)
+            .clip(-scale, scale);
+        
         Dense {
-            // Initialize weights with small random values
-            weights: NDArray::randn_2d(input_size, output_size).multiply_scalar(0.01),
-            // Initialize biases to zero
-            biases: NDArray::zeros(vec![1, output_size]),
+            weights,
+            biases: NDArray::zeros(vec![1, output_size]),  // Initialize biases to zero
             input: None,
             gradients: None,
         }

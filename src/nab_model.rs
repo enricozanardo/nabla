@@ -310,14 +310,13 @@ mod tests {
     #[test]
     fn test_model() {
         let mut model = Model::new()
-            .input(vec![784])  // For MNIST: 28x28 = 784 input features
-            .add_dense(32, Box::new(Sigmoid::default()))
-            .add_dense(32, Box::new(Sigmoid::default()))
+            .input(vec![784])
+            .add_dense(32, Box::new(ReLU::default()))
             .add_dense(10, Box::new(Softmax::default()))
             .build();
 
         model.compile(
-            Box::new(Adam::default()), 
+            Box::new(Adam::new(0.0005, 0.9, 0.999, 1e-8)),
             Box::new(CategoricalCrossentropy),
             vec!["accuracy".to_string()]
         );

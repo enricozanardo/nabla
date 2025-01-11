@@ -28,7 +28,7 @@ impl Adam {
     }
 
     pub fn default() -> Self {
-        Adam::new(0.001, 0.9, 0.999, 1e-8)
+        Adam::new(0.01, 0.9, 0.999, 1e-7)
     }
 
     fn ensure_moment_shapes(&mut self, shape: &[usize]) {
