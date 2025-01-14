@@ -72,6 +72,20 @@ impl Model {
     ) -> Vec<HashMap<String, f64>> {
         let mut history = Vec::new();
         
+        // Add debug prints for data ranges
+        println!("Data statistics before training:");
+        println!("X range: [{}, {}]", 
+            x_train.data().iter().fold(f64::INFINITY, |a, &b| a.min(b)),
+            x_train.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)));
+        
+        // Count unique values in y_train (rounded to handle floating point)
+        let mut y_values = y_train.data().iter()
+            .map(|&x| (x * 1000.0).round() / 1000.0)
+            .collect::<Vec<_>>();
+        y_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        y_values.dedup();
+        println!("Y unique values (rounded): {:?}", y_values);
+        
         for _epoch in 0..epochs {
             let mut epoch_metrics = HashMap::new();
             let mut correct_predictions = 0;
@@ -181,10 +195,10 @@ pub fn forward(&mut self, input: &NDArray) -> NDArray {
     }
 
     fn calculate_accuracy(&self, predictions: &NDArray, targets: &NDArray) -> usize {
+        // Comment out debug prints
         println!("Debug: Predictions shape before reshape: {:?}", predictions.shape());
         println!("Debug: Targets shape before reshape: {:?}", targets.shape());
 
-        // Ensure predictions and targets are 2D
         let predictions = if predictions.ndim() == 1 {
             predictions.reshape(vec![1, -(predictions.shape()[0] as isize)])
         } else {
@@ -197,15 +211,16 @@ pub fn forward(&mut self, input: &NDArray) -> NDArray {
             targets.clone()
         };
 
-        println!("Debug: Predictions shape after reshape: {:?}", predictions.shape());
-        println!("Debug: Targets shape after reshape: {:?}", targets.shape());
+        // println!("Debug: Predictions shape after reshape: {:?}", predictions.shape());
+        // println!("Debug: Targets shape after reshape: {:?}", targets.shape());
 
         // Get the indices of maximum values along rows (axis=1)
         let pred_argmax = predictions.argmax(Some(1));
         let target_argmax = targets.argmax(Some(1));
 
-        println!("Debug: Pred argmax values: {:?}", pred_argmax);
-        println!("Debug: Target argmax values: {:?}", target_argmax);
+        // Comment out debug prints
+        // println!("Debug: Pred argmax values: {:?}", pred_argmax);
+        // println!("Debug: Target argmax values: {:?}", target_argmax);
 
         // Count matches
         let correct = pred_argmax.iter()
@@ -213,7 +228,7 @@ pub fn forward(&mut self, input: &NDArray) -> NDArray {
             .filter(|(p, t)| p == t)
             .count();
 
-        println!("Debug: Correct predictions: {}", correct);
+        // println!("Debug: Correct predictions: {}", correct);
         correct
     }
 
@@ -311,52 +326,42 @@ mod tests {
     fn test_model() {
         let mut model = Model::new()
             .input(vec![784])
+            // Wider network with gradual reduction
+            .add_dense(32, Box::new(ReLU::default()))
             .add_dense(32, Box::new(ReLU::default()))
             .add_dense(10, Box::new(Softmax::default()))
             .build();
 
         model.compile(
-            Box::new(Adam::new(0.0005, 0.9, 0.999, 1e-8)),
+            Box::new(Adam::new(0.0001, 0.9, 0.999, 1e-8)),  // Lower learning rate
             Box::new(CategoricalCrossentropy),
             vec!["accuracy".to_string()]
         );
 
-        model.summary();
+        let ((mut train_images, train_labels), (mut test_images, _test_labels)) = 
+            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0).unwrap();
 
-        // let ((mut train_images, train_labels), (mut test_images, test_labels)) = 
-        //     NDArray::load_and_split_dataset("datasets/mnist_test", 80.0).unwrap();
+        // Normalize images to [0,1] range and scale to [-1,1]
+        train_images.normalize();
+        train_images = train_images.multiply_scalar(2.0).add_scalar(-1.0);
+        test_images.normalize();
+        test_images = test_images.multiply_scalar(2.0).add_scalar(-1.0);
 
-        // assert_eq!(train_images.shape()[0] + test_images.shape()[0], 999);
-        // assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
+        let reshaped_images = train_images.reshape(vec![-1, 784]);
+        let one_hot_train_labels = NDArray::one_hot_encode(&train_labels);
 
-        // println!("Training samples: {:?}", train_images.shape());
-        // println!("Test samples: {:?}", test_images.shape());
+        let history = model.fit(
+            &reshaped_images,
+            &one_hot_train_labels,
+            64,  // Larger batch size
+            10
+        );
 
-        // train_images.normalize();
-        // test_images.normalize();
-
-        // let reshaped_images = train_images.reshape(vec![-1, 784]);
-        // let reshaped_test_images = test_images.reshape(vec![-1, 784]);
-        // println!("Reshaped images shape: {:?}", reshaped_images.shape());   
-
-        // let one_hot_train_labels: NDArray = NDArray::one_hot_encode(&train_labels);
-        // let one_hot_test_labels: NDArray = NDArray::one_hot_encode(&test_labels);
-
-        // let label_42: NDArray =  one_hot_train_labels.extract_sample(42);
-        // label_42.pretty_print(1);
-
-        // // train the model
-        // let history = model.fit(
-        //     &reshaped_images, 
-        //     &one_hot_train_labels, 
-        //     32, 
-        //     10
-        // );
-        
-        // println!("Training History:");
-        // for (epoch, metrics) in history.iter().enumerate() {
-        //     println!("Epoch {}: {:?}", epoch + 1, metrics);
-        // }
-
+        // Print history
+        for (epoch, metrics) in history.iter().enumerate() {
+            println!("Epoch {}: {:?}", epoch + 1, metrics);
+        }
     }
+
+
 } 

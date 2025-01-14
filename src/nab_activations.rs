@@ -29,7 +29,11 @@ impl Default for Sigmoid {
 
 impl Activation for ReLU {
     fn forward(&self, input: &NDArray) -> NDArray {
-        input.relu()
+        let output = input.relu();
+        println!("ReLU activation range: [{}, {}]",
+            output.data().iter().fold(f64::INFINITY, |a, &b| a.min(b)),
+            output.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)));
+        output
     }
 
     fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray {
@@ -39,7 +43,11 @@ impl Activation for ReLU {
 
 impl Activation for Softmax {
     fn forward(&self, input: &NDArray) -> NDArray {
-        input.softmax()
+        let output = input.softmax();
+        println!("Softmax activation range: [{}, {}]",
+            output.data().iter().fold(f64::INFINITY, |a, &b| a.min(b)),
+            output.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)));
+        output
     }
     
     fn backward(&self, gradient: &NDArray, output: &NDArray) -> NDArray {

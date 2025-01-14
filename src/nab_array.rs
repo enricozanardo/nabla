@@ -210,42 +210,39 @@ impl NDArray {
     /// For 1D arrays: returns a single index
     /// For 2D arrays: returns indices along the specified axis
     pub fn argmax(&self, axis: Option<usize>) -> Vec<usize> {
-        println!("Debug: Array shape: {:?}, ndim: {}, axis: {:?}", 
-            self.shape, self.ndim(), axis);
-            
         match axis {
             None => {
-                println!("Debug: Using global argmax");
-                vec![self.data.iter()
-                    .enumerate()
-                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                    .map(|(idx, _)| idx)
-                    .unwrap()]
+                // Global argmax
+                let mut max_idx = 0;
+                let mut max_val = self.data[0];
+                for (i, &val) in self.data.iter().enumerate() {
+                    if val > max_val {
+                        max_idx = i;
+                        max_val = val;
+                    }
+                }
+                vec![max_idx]
             },
             Some(1) => {
-                if self.ndim() != 2 {
-                    println!("Debug: Expected 2D array for axis=1, got {}D array", self.ndim());
-                    panic!("Array must be 2D when using axis=1");
+                let (rows, cols) = (self.shape[0], self.shape[1]);
+                let mut result = Vec::with_capacity(rows);
+                
+                for i in 0..rows {
+                    let mut max_idx = 0;
+                    let mut max_val = self.data[i * cols];
+                    
+                    for j in 0..cols {
+                        let val = self.data[i * cols + j];
+                        if val > max_val {
+                            max_idx = j;
+                            max_val = val;
+                        }
+                    }
+                    result.push(max_idx);
                 }
-                
-                let rows = self.shape[0];
-                let cols = self.shape[1];
-                println!("Debug: Processing 2D array with shape [{}, {}]", rows, cols);
-                
-                (0..rows).map(|i| {
-                    let start = i * cols;
-                    let row_slice = &self.data[start..start + cols];
-                    row_slice.iter()
-                        .enumerate()
-                        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                        .map(|(idx, _)| idx)
-                        .unwrap()
-                }).collect()
+                result
             },
-            Some(ax) => {
-                println!("Debug: Unsupported axis: {}", ax);
-                panic!("Only axis=1 (row-wise) is supported for argmax")
-            }
+            _ => panic!("Only axis=1 (row-wise) is supported for argmax")
         }
     }
 
@@ -1051,6 +1048,106 @@ impl NDArray {
         
         NDArray::new(new_data, new_shape)
     }
+
+    /// Add layer normalization
+    pub fn layer_normalize(&self) -> Self {
+        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let mut result = vec![0.0; self.data.len()];
+        
+        for i in 0..rows {
+            let start = i * cols;
+            let end = start + cols;
+            let row = &self.data[start..end];
+            
+            // Calculate mean and variance
+            let mean: f64 = row.iter().sum::<f64>() / cols as f64;
+            let var: f64 = row.iter()
+                .map(|&x| (x - mean).powi(2))
+                .sum::<f64>() / cols as f64;
+            let std = (var + 1e-5).sqrt();
+            
+            // Normalize
+            for j in 0..cols {
+                result[start + j] = (row[j] - mean) / std;
+            }
+        }
+        
+        NDArray::new(result, self.shape.clone())
+    }
+
+    /// Add batch normalization
+    pub fn batch_normalize(&self) -> Self {
+        let (batch_size, features) = (self.shape[0], self.shape[1]);
+        let mut result = vec![0.0; self.data.len()];
+        
+        // For each feature
+        for j in 0..features {
+            // Calculate mean and variance across the batch
+            let mut mean = 0.0;
+            let mut var = 0.0;
+            
+            // Calculate mean
+            for i in 0..batch_size {
+                mean += self.data[i * features + j];
+            }
+            mean /= batch_size as f64;
+            
+            // Calculate variance
+            for i in 0..batch_size {
+                var += (self.data[i * features + j] - mean).powi(2);
+            }
+            var /= batch_size as f64;
+            
+            // Normalize
+            let std = (var + 1e-5).sqrt();
+            for i in 0..batch_size {
+                result[i * features + j] = (self.data[i * features + j] - mean) / std;
+            }
+        }
+        
+        NDArray::new(result, self.shape.clone())
+    }
+
+
+    pub fn add(self, other: &NDArray) -> Self {
+        println!("Adding arrays:");
+        println!("  Left shape: {:?}", self.shape);
+        println!("  Right shape: {:?}", other.shape);
+
+        // Handle broadcasting for shapes like [N, M] + [1, M]
+        if self.shape.len() == other.shape.len() && 
+           other.shape[0] == 1 && 
+           self.shape[1] == other.shape[1] {
+            
+            println!("  Performing broadcasting addition");
+            let mut result_data = Vec::with_capacity(self.data.len());
+            let cols = other.shape[1];
+            
+            // Add the broadcasted row to each row of self
+            for i in 0..self.shape[0] {
+                for j in 0..cols {
+                    result_data.push(self.data[i * cols + j] + other.data[j]);
+                }
+            }
+            
+            let result = NDArray::new(result_data, self.shape.clone());
+            println!("  Result shape: {:?}", result.shape);
+            return result;
+        }
+        
+        // Regular element-wise addition for matching shapes
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise addition\n  left: {:?}\n right: {:?}", 
+                   self.shape, other.shape);
+        }
+
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a + b)
+            .collect();
+
+        NDArray::new(data, self.shape.clone())
+    }
 }
 
 impl Add for NDArray {
@@ -1126,21 +1223,12 @@ impl Mul<f64> for NDArray {
     }
 }
 
+
 impl Add<f64> for NDArray {
     type Output = Self;
 
     fn add(self, scalar: f64) -> Self::Output {
-        let data: Vec<f64> = self.data.iter().map(|&x| x + scalar).collect();
-        NDArray::new(data, self.shape.clone())
-    }
-}
-
-impl Add<f64> for &NDArray {
-    type Output = NDArray;
-
-    fn add(self, scalar: f64) -> Self::Output {
-        let data: Vec<f64> = self.data.iter().map(|&x| x + scalar).collect();
-        NDArray::new(data, self.shape.clone())
+        self.add_scalar(scalar)
     }
 }
 

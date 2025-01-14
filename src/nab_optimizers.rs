@@ -1,4 +1,5 @@
 use crate::nab_array::NDArray;
+use std::collections::HashMap;
 
 pub trait Optimizer {
     fn update(&mut self, weights: &mut NDArray, gradients: &NDArray);
@@ -9,9 +10,8 @@ pub struct Adam {
     beta1: f64,
     beta2: f64,
     epsilon: f64,
-    m: NDArray,  // First moment
-    v: NDArray,  // Second moment
-    t: usize,           // Timestep
+    moments: HashMap<String, (NDArray, NDArray)>,  // Store m and v for each layer
+    t: usize,
 }
 
 impl Adam {
@@ -21,52 +21,50 @@ impl Adam {
             beta1,
             beta2,
             epsilon,
+            moments: HashMap::new(),
             t: 1,
-            m: NDArray::zeros(vec![1, 1]),  // Will be resized on first update
-            v: NDArray::zeros(vec![1, 1]),  // Will be resized on first update
         }
     }
 
     pub fn default() -> Self {
-        Adam::new(0.01, 0.9, 0.999, 1e-7)
+        Adam::new(0.001, 0.9, 0.999, 1e-8)
     }
 
-    fn ensure_moment_shapes(&mut self, shape: &[usize]) {
-        if self.m.shape() != shape {
-            println!("Initializing moment vectors with shape: {:?}", shape);
-            self.m = NDArray::zeros(shape.to_vec());
-            self.v = NDArray::zeros(shape.to_vec());
+    fn get_or_init_moments(&mut self, layer_name: &str, shape: &[usize]) -> &mut (NDArray, NDArray) {
+        if !self.moments.contains_key(layer_name) {
+            let m = NDArray::zeros(shape.to_vec());
+            let v = NDArray::zeros(shape.to_vec());
+            self.moments.insert(layer_name.to_string(), (m, v));
         }
+        self.moments.get_mut(layer_name).unwrap()
     }
 }
 
 impl Optimizer for Adam {
-    fn update(&mut self, weights: &mut NDArray, gradients: &NDArray) -> () {
-        println!("Adam update:");
-        println!("  Weights shape: {:?}", weights.shape());
-        println!("  Gradients shape: {:?}", gradients.shape());
+    fn update(&mut self, weights: &mut NDArray, gradients: &NDArray) {
+        let layer_name = format!("{:?}", weights.shape());
+        let beta1 = self.beta1;
+        let beta2 = self.beta2;
+        let epsilon = self.epsilon;
+        let t = self.t;
+        let learning_rate = self.learning_rate;
         
-        // Ensure moment vectors have correct shape
-        self.ensure_moment_shapes(weights.shape());
-
-        // Update biased first moment estimate
-        self.m = self.beta1 * &self.m + (1.0 - self.beta1) * gradients;
-
-        // Update biased second raw moment estimate
-        let squared_gradients = gradients.multiply(gradients);
-        self.v = self.beta2 * &self.v + (1.0 - self.beta2) * &squared_gradients;
-
-        // Compute bias-corrected first moment estimate
-        let m_hat = self.m.multiply_scalar(1.0 / (1.0 - self.beta1.powi(self.t as i32)));
-
-        // Compute bias-corrected second raw moment estimate
-        let v_hat = self.v.multiply_scalar(1.0 / (1.0 - self.beta2.powi(self.t as i32)));
-
-        // Update parameters
-        let update = m_hat.divide(&(v_hat.sqrt() + self.epsilon));
-        *weights = weights.subtract(&update.multiply_scalar(self.learning_rate));
-
-        // Increment timestep after all computations
+        let (m, v) = self.get_or_init_moments(&layer_name, weights.shape());
+        
+        *m = m.multiply_scalar(beta1)
+            .add(&gradients.multiply_scalar(1.0 - beta1));
+        
+        *v = v.multiply_scalar(beta2)
+            .add(&gradients.multiply(gradients).multiply_scalar(1.0 - beta2));
+        
+        let m_hat = m.multiply_scalar(1.0 / (1.0 - beta1.powi(t as i32)));
+        let v_hat = v.multiply_scalar(1.0 / (1.0 - beta2.powi(t as i32)));
+        
+        let update = m_hat.divide(&v_hat.sqrt().add_scalar(epsilon))
+            .multiply_scalar(learning_rate);
+            
+        *weights = weights.subtract(&update);
+        
         self.t += 1;
     }
 }

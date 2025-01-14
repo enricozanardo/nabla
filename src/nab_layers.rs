@@ -21,17 +21,13 @@ pub struct Dense {
 
 impl Dense {
     pub fn new(input_size: usize, output_size: usize) -> Self {
-        // He initialization for ReLU
-        let scale = (2.0 / input_size as f64).sqrt();
-        
-        // Initialize weights with uniform distribution between -scale and scale
-        let weights = NDArray::randn_2d(input_size, output_size)
-            .multiply_scalar(scale)
-            .clip(-scale, scale);
+        // He initialization with adjusted scale
+        let scale = (2.0 / input_size as f64).sqrt() * 0.5;  // Increased from 0.1
         
         Dense {
-            weights,
-            biases: NDArray::zeros(vec![1, output_size]),  // Initialize biases to zero
+            weights: NDArray::randn_2d(input_size, output_size)
+                .multiply_scalar(scale),
+            biases: NDArray::zeros(vec![1, output_size]),
             input: None,
             gradients: None,
         }
@@ -51,22 +47,24 @@ impl Layer for Dense {
         
         // No need to reshape biases - they're already [1, output_size]
         println!("  Adding biases with shape: {:?}", self.biases.shape());
-        let final_output = output + &self.biases;
+        let normalized = output.batch_normalize();  // Use batch normalization
+        let final_output = normalized + &self.biases;
         println!("  Final output shape: {:?}", final_output.shape());
         
         final_output
     }
 
     fn backward(&mut self, gradient: &NDArray) -> NDArray {
-        // Compute gradients
         let input = self.input.as_ref().unwrap();
         let weight_gradients = input.transpose().dot(gradient);
         let bias_gradients = gradient.sum_axis(0);
         
-        // Store gradients
-        self.gradients = Some((weight_gradients, bias_gradients));
+        // Increase clip value since we're using batch norm
+        let clip_value = 5.0;
+        let clipped_weight_gradients = weight_gradients.clip(-clip_value, clip_value);
+        let clipped_bias_gradients = bias_gradients.clip(-clip_value, clip_value);
         
-        // Return gradient for previous layer
+        self.gradients = Some((clipped_weight_gradients, clipped_bias_gradients));
         gradient.dot(&self.weights.transpose())
     }
 
