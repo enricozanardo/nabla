@@ -1,6 +1,6 @@
 # Nabla ML
 
-A lightweight neural network library implemented in Rust, focusing on simplicity and educational purposes. It is inspired by NumPy, providing a multi-dimensional array implementation with various mathematical and array manipulation functionalities.
+A lightweight neural network library implemented in Rust, focusing on simplicity and educational purposes. It is inspired by NumPy and TensorFlow, providing a multi-dimensional array implementation with various mathematical and array manipulation functionalities.
 
 ## Features
 

@@ -138,52 +138,18 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with the specified shape.
-    pub fn reshape(&self, new_shape: Vec<isize>) -> Self {
+    pub fn reshape(&self, new_shape: &[usize]) -> Result<Self, &'static str> {
         let total_elements = self.data.len();
-        let mut inferred_index = None;
-        let mut known_elements: usize = 1;
-
-        // First pass: calculate product of known dimensions
-        for (i, &dim) in new_shape.iter().enumerate() {
-            if dim == -1 {
-                if inferred_index.is_some() {
-                    panic!("Only one dimension can be inferred");
-                }
-                inferred_index = Some(i);
-            } else if dim <= 0 {
-                panic!("Dimensions must be positive (except -1 for inference)");
-            } else {
-                known_elements = known_elements.checked_mul(dim as usize)
-                    .expect("Shape multiplication overflow");
-            }
+        let new_total = new_shape.iter().product();
+        
+        if total_elements != new_total {
+            return Err("New shape must have same total size as original");
         }
-
-        // Calculate the inferred dimension
-        let mut final_shape: Vec<usize> = Vec::with_capacity(new_shape.len());
-        if let Some(idx) = inferred_index {
-            // Ensure we can evenly divide the total elements
-            assert!(total_elements % known_elements == 0, 
-                "Cannot infer dimension that evenly divides total elements");
-            
-            for (i, &dim) in new_shape.iter().enumerate() {
-                if i == idx {
-                    final_shape.push(total_elements / known_elements);
-                } else {
-                    final_shape.push(dim as usize);
-                }
-            }
-        } else {
-            final_shape = new_shape.iter()
-                .map(|&x| x as usize)
-                .collect();
-        }
-
-        // Verify total size matches
-        let new_total = final_shape.iter().product();
-        assert_eq!(total_elements, new_total, 
-            "New shape must have the same number of elements as the original array");
-
-        Self::new(self.data.clone(), final_shape)
+        
+        Ok(NDArray {
+            data: self.data.clone(),
+            shape: new_shape.to_vec()
+        })
     }
 
      /// Returns the maximum value in the array
@@ -213,36 +179,56 @@ impl NDArray {
         match axis {
             None => {
                 // Global argmax
-                let mut max_idx = 0;
-                let mut max_val = self.data[0];
-                for (i, &val) in self.data.iter().enumerate() {
-                    if val > max_val {
-                        max_idx = i;
-                        max_val = val;
-                    }
-                }
-                vec![max_idx]
+                vec![self.data.iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .map(|(i, _)| i)
+                    .unwrap()]
             },
-            Some(1) => {
-                let (rows, cols) = (self.shape[0], self.shape[1]);
-                let mut result = Vec::with_capacity(rows);
-                
-                for i in 0..rows {
-                    let mut max_idx = 0;
-                    let mut max_val = self.data[i * cols];
-                    
-                    for j in 0..cols {
-                        let val = self.data[i * cols + j];
-                        if val > max_val {
-                            max_idx = j;
-                            max_val = val;
+            Some(ax) => {
+                if ax >= self.shape.len() {
+                    panic!("Axis {} out of bounds for shape {:?}", ax, self.shape);
+                }
+                // Axis-wise argmax
+                match ax {
+                    0 => {
+                        let cols = self.shape[1];
+                        let mut indices = Vec::with_capacity(cols);
+                        for j in 0..cols {
+                            let mut max_idx = 0;
+                            let mut max_val = self.data[j];
+                            for i in 1..self.shape[0] {
+                                let val = self.data[i * cols + j];
+                                if val > max_val {
+                                    max_val = val;
+                                    max_idx = i;
+                                }
+                            }
+                            indices.push(max_idx);
                         }
-                    }
-                    result.push(max_idx);
+                        indices
+                    },
+                    1 => {
+                        let cols = self.shape[1];
+                        let mut indices = Vec::with_capacity(self.shape[0]);
+                        for i in 0..self.shape[0] {
+                            let row_start = i * cols;
+                            let mut max_idx = 0;
+                            let mut max_val = self.data[row_start];
+                            for j in 1..cols {
+                                let val = self.data[row_start + j];
+                                if val > max_val {
+                                    max_val = val;
+                                    max_idx = j;
+                                }
+                            }
+                            indices.push(max_idx);
+                        }
+                        indices
+                    },
+                    _ => panic!("Unsupported axis {}", ax)
                 }
-                result
-            },
-            _ => panic!("Only axis=1 (row-wise) is supported for argmax")
+            }
         }
     }
 
@@ -807,19 +793,24 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray with transposed dimensions.
-    pub fn transpose(&self) -> Self {
-        assert_eq!(self.ndim(), 2, "Transpose is only defined for 2D arrays");
-        let rows = self.shape[0];
-        let cols = self.shape[1];
-        let mut transposed_data = vec![0.0; self.data.len()];
-
+    pub fn transpose(&self) -> Result<Self, &'static str> {
+        if self.shape.len() != 2 {
+            return Err("transpose currently only supports 2D arrays");
+        }
+        
+        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let mut new_data = vec![0.0; rows * cols];
+        
         for i in 0..rows {
             for j in 0..cols {
-                transposed_data[j * rows + i] = self.data[i * cols + j];
+                new_data[j * rows + i] = self.data[i * cols + j];
             }
         }
-
-        NDArray::new(transposed_data, vec![cols, rows])
+        
+        Ok(NDArray {
+            data: new_data,
+            shape: vec![cols, rows]
+        })
     }
 
     /// Performs matrix multiplication (dot product) between two 2D arrays
@@ -1148,6 +1139,214 @@ impl NDArray {
 
         NDArray::new(data, self.shape.clone())
     }
+
+    /// Returns the mean of the array
+    pub fn mean(&self) -> f64 {
+        self.sum() / self.data.len() as f64
+    }
+
+    /// Returns the standard deviation of the array
+    pub fn std(&self) -> f64 {
+        let mean = self.mean();
+        let variance = self.data.iter()
+            .map(|&x| (x - mean).powi(2))
+            .sum::<f64>() / self.data.len() as f64;
+        variance.sqrt()
+    }
+
+    /// Returns the minimum value along the specified axis
+    pub fn min_axis(&self, axis: usize) -> Result<Self, &'static str> {
+        if axis >= self.shape.len() {
+            return Err("Axis out of bounds");
+        }
+
+        match axis {
+            0 => {
+                if self.shape.len() != 2 {
+                    return Err("min_axis(0) requires 2D array");
+                }
+                let cols = self.shape[1];
+                let mut result = vec![f64::INFINITY; cols];
+                
+                for j in 0..cols {
+                    for i in 0..self.shape[0] {
+                        result[j] = result[j].min(self.data[i * cols + j]);
+                    }
+                }
+                
+                Ok(NDArray::new(result, vec![1, cols]))
+            },
+            1 => {
+                if self.shape.len() != 2 {
+                    return Err("min_axis(1) requires 2D array");
+                }
+                let cols = self.shape[1];
+                let mut result = vec![f64::INFINITY; self.shape[0]];
+                
+                for i in 0..self.shape[0] {
+                    for j in 0..cols {
+                        result[i] = result[i].min(self.data[i * cols + j]);
+                    }
+                }
+                
+                Ok(NDArray::new(result, vec![self.shape[0], 1]))
+            },
+            _ => Err("Unsupported axis")
+        }
+    }
+
+    /// Concatenates two arrays along the specified axis
+    pub fn concatenate(&self, other: &Self, axis: usize) -> Result<Self, &'static str> {
+        if axis >= self.shape.len() {
+            return Err("Axis out of bounds");
+        }
+        
+        if self.shape.len() != other.shape.len() {
+            return Err("Arrays must have same number of dimensions");
+        }
+        
+        // Check that all dimensions except axis match
+        for (i, (&s1, &s2)) in self.shape.iter().zip(other.shape.iter()).enumerate() {
+            if i != axis && s1 != s2 {
+                return Err("All dimensions except concatenation axis must match");
+            }
+        }
+        
+        let mut new_shape = self.shape.clone();
+        new_shape[axis] += other.shape[axis];
+        
+        let mut new_data = Vec::with_capacity(self.data.len() + other.data.len());
+        
+        match axis {
+            0 => {
+                new_data.extend_from_slice(&self.data);
+                new_data.extend_from_slice(&other.data);
+            },
+            1 => {
+                let rows = self.shape[0];
+                let cols1 = self.shape[1];
+                let cols2 = other.shape[1];
+                
+                for i in 0..rows {
+                    new_data.extend_from_slice(&self.data[i * cols1..(i + 1) * cols1]);
+                    new_data.extend_from_slice(&other.data[i * cols2..(i + 1) * cols2]);
+                }
+            },
+            _ => return Err("Unsupported axis")
+        }
+        
+        Ok(NDArray::new(new_data, new_shape))
+    }
+
+    pub fn map<F>(&self, f: F) -> Self 
+    where F: Fn(f64) -> f64 
+    {
+        let new_data: Vec<f64> = self.data.iter().map(|&x| f(x)).collect();
+        NDArray::new(new_data, self.shape.clone())
+    }
+
+    /// Returns the absolute values of array elements
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with absolute values
+    pub fn abs(&self) -> Self {
+        self.map(|x| x.abs())
+    }
+
+    /// Returns the exponential power of array elements
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with exponential values
+    pub fn power(&self, n: f64) -> Self {
+        self.map(|x| x.powf(n))
+    }
+
+    /// Returns the cumulative sum of array elements
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with cumulative sums
+    pub fn cumsum(&self) -> Self {
+        let mut result = Vec::with_capacity(self.data.len());
+        let mut sum = 0.0;
+        for &x in &self.data {
+            sum += x;
+            result.push(sum);
+        }
+        NDArray::new(result, self.shape.clone())
+    }
+
+    /// Returns array with elements rounded to specified decimals
+    ///
+    /// # Arguments
+    ///
+    /// * `decimals` - Number of decimal places to round to
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with rounded values
+    pub fn round(&self, decimals: i32) -> Self {
+        let factor = 10.0_f64.powi(decimals);
+        self.map(|x| (x * factor).round() / factor)
+    }
+
+    /// Returns indices that would sort the array
+    ///
+    /// # Returns
+    ///
+    /// A vector of indices that would sort the array
+    pub fn argsort(&self) -> Vec<usize> {
+        let mut indices: Vec<usize> = (0..self.data.len()).collect();
+        indices.sort_by(|&i, &j| self.data[i].partial_cmp(&self.data[j]).unwrap());
+        indices
+    }
+
+    /// Returns unique elements of the array
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray containing unique elements in sorted order
+    pub fn unique(&self) -> Self {
+        let mut unique_vals = self.data.clone();
+        unique_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        unique_vals.dedup();
+        NDArray::new(unique_vals.to_vec(), vec![unique_vals.len()])
+    }
+
+    /// Applies a condition element-wise and returns a new array
+    ///
+    /// # Arguments
+    ///
+    /// * `condition` - Function that returns true/false for each element
+    /// * `x` - Value to use where condition is true
+    /// * `y` - Value to use where condition is false
+    ///
+    /// # Returns
+    ///
+    /// A new NDArray with values chosen based on condition
+    pub fn where_cond<F>(&self, condition: F, x: f64, y: f64) -> Self 
+    where F: Fn(f64) -> bool 
+    {
+        self.map(|val| if condition(val) { x } else { y })
+    }
+
+    /// Returns the median value of the array
+    ///
+    /// # Returns
+    ///
+    /// The median value as f64
+    pub fn median(&self) -> f64 {
+        let mut sorted = self.data.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let mid = sorted.len() / 2;
+        if sorted.len() % 2 == 0 {
+            (sorted[mid - 1] + sorted[mid]) / 2.0
+        } else {
+            sorted[mid]
+        }
+    }
 }
 
 impl Add for NDArray {
@@ -1251,6 +1450,7 @@ impl std::fmt::Display for NDArray {
 mod tests {
     use super::*;
 
+    /// Tests basic NDArray creation with explicit data and shape
     #[test]
     fn test_new_ndarray() {
         let data = vec![1.0, 2.0, 3.0, 4.0];
@@ -1260,6 +1460,7 @@ mod tests {
         assert_eq!(array.shape(), &shape);
     }
 
+    /// Tests creation of 1D array from vector
     #[test]
     fn test_from_vec() {
         let data = vec![1.0, 2.0, 3.0];
@@ -1268,12 +1469,14 @@ mod tests {
         assert_eq!(array.shape(), &[3]);
     }
 
+    /// Tests array creation with evenly spaced values
     #[test]
     fn test_arange() {
         let array = NDArray::arange(0.0, 5.0, 1.0);
         assert_eq!(array.data(), &[0.0, 1.0, 2.0, 3.0, 4.0]);
     }
 
+    /// Tests element-wise addition between two arrays
     #[test]
     fn test_element_wise_addition() {
         let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1282,6 +1485,7 @@ mod tests {
         assert_eq!(sum.data(), &[5.0, 7.0, 9.0]);
     }
 
+    /// Tests multiplication of array by scalar value
     #[test]
     fn test_scalar_multiplication() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1289,13 +1493,16 @@ mod tests {
         assert_eq!(scaled.data(), &[2.0, 4.0, 6.0]);
     }
 
+    /// Tests reshaping array to new dimensions while preserving data
     #[test]
     fn test_reshape() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-        let reshaped = arr.reshape(vec![2, 3]);
+        let reshaped = arr.reshape(&[2, 3])
+            .expect("Failed to reshape array to valid dimensions");
         assert_eq!(reshaped.data(), &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
 
+    /// Tests element-wise subtraction between arrays
     #[test]
     fn test_element_wise_subtraction() {
         let arr1 = NDArray::from_vec(vec![5.0, 7.0, 9.0]);
@@ -1304,6 +1511,7 @@ mod tests {
         assert_eq!(diff.data(), &[4.0, 5.0, 6.0]);
     }
 
+    /// Tests addition of scalar to array
     #[test]
     fn test_scalar_addition() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1311,8 +1519,8 @@ mod tests {
         assert_eq!(result.data(), &[2.0, 3.0, 4.0]);
     }
 
+    /// Tests combination of multiple operations in sequence
     #[test]
-    #[allow(non_snake_case)]
     fn test_combined_operations() {
         let X = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
         let theta_1 = 2.0;
@@ -1321,7 +1529,7 @@ mod tests {
         assert_eq!(predictions.data(), &[3.0, 5.0, 7.0]);
     }
 
-
+    /// Tests one-hot encoding of label vectors
     #[test]
     fn test_one_hot_encode() {
         let labels = NDArray::from_vec(vec![0.0, 1.0, 2.0, 1.0, 0.0]);
@@ -1339,6 +1547,7 @@ mod tests {
         assert_eq!(one_hot.data(), &expected);
     }
 
+    /// Tests one-hot encoding with negative label values
     #[test]
     fn test_one_hot_encode_negative() {
         let labels = NDArray::from_vec(vec![-1.0, 0.0, 1.0, 0.0, -1.0]);
@@ -1356,24 +1565,28 @@ mod tests {
         assert_eq!(one_hot.data(), &expected);
     }
 
+    /// Tests that one-hot encoding fails with non-integer values
     #[test]
-    #[should_panic(expected = "All values must be integers")]
+    #[should_panic(expected = "All values must be integers for one-hot encoding")]
     fn test_one_hot_encode_non_integer() {
         let labels = NDArray::from_vec(vec![0.0, 1.5, 2.0]);
         NDArray::one_hot_encode(&labels);
     }
 
+    /// Tests matrix transposition operation
     #[test]
     fn test_transpose() {
         let arr = NDArray::from_matrix(vec![
             vec![1.0, 2.0, 3.0],
-            vec![4.0, 5.0, 6.0],
+            vec![4.0, 5.0, 6.0]
         ]);
-        let transposed = arr.transpose();
-        assert_eq!(transposed.data(), &[1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
+        let transposed = arr.transpose()
+            .expect("Failed to transpose valid 2D array");
         assert_eq!(transposed.shape(), &[3, 2]);
+        assert_eq!(transposed.data(), &[1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
     }
 
+    /// Tests matrix multiplication (dot product)
     #[test]
     fn test_dot() {
         let arr1 = NDArray::from_matrix(vec![
@@ -1389,6 +1602,7 @@ mod tests {
         assert_eq!(dot.data(), &[58.0, 64.0, 139.0, 154.0]); // Adjust expected values based on the dot product calculation
     }
 
+    /// Tests element-wise multiplication between arrays
     #[test]
     fn test_multiply() {
         let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1397,6 +1611,7 @@ mod tests {
         assert_eq!(multiply.data(), &[4.0, 10.0, 18.0]);
     }
 
+    /// Tests subtraction of scalar from array
     #[test]
     fn test_scalar_sub() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1404,6 +1619,7 @@ mod tests {
         assert_eq!(result.data(), &[0.0, 1.0, 2.0]);
     }
 
+    /// Tests multiplication by scalar value
     #[test]
     fn test_multiply_scalar() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1411,6 +1627,7 @@ mod tests {
         assert_eq!(result.data(), &[2.0, 4.0, 6.0]);
     }
 
+    /// Tests mapping function across array elements
     #[test]
     fn test_map() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1418,6 +1635,7 @@ mod tests {
         assert_eq!(result.data(), &[2.0, 4.0, 6.0]);
     }
 
+    /// Tests clipping array values to specified range
     #[test]
     fn test_clip() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1425,6 +1643,7 @@ mod tests {
         assert_eq!(result.data(), &[1.0, 2.0, 2.0]);
     }
 
+    /// Tests element-wise division between arrays
     #[test]
     fn test_divide() {
         let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1433,6 +1652,7 @@ mod tests {
         assert_eq!(divide.data(), &[0.25, 0.4, 0.5]);
     }
 
+    /// Tests division by scalar value
     #[test]
     fn test_divide_scalar() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1440,6 +1660,7 @@ mod tests {
         assert_eq!(result.data(), &[0.5, 1.0, 1.5]);
     }
 
+    /// Tests sum operation along specified axis
     #[test]
     fn test_sum_axis() {
         let arr = NDArray::from_matrix(vec![
@@ -1455,6 +1676,7 @@ mod tests {
         assert_eq!(result.shape(), &[2, 1]); // Shape should be [2, 1]
     }
 
+    /// Tests element-wise subtraction between arrays
     #[test]
     fn test_subtract() {
         let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1463,6 +1685,7 @@ mod tests {
         assert_eq!(subtract.data(), &[-3.0, -3.0, -3.0]);
     }
 
+    /// Tests addition of scalar to array
     #[test]
     fn test_add_scalar() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1470,6 +1693,7 @@ mod tests {
         assert_eq!(result.data(), &[2.0, 3.0, 4.0]);
     }
 
+    /// Tests creation of zero-filled array
     #[test]
     fn test_zeros() {
         let shape = vec![2, 3];
@@ -1478,6 +1702,7 @@ mod tests {
         assert_eq!(zeros.data(), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
     }
 
+    /// Tests natural logarithm of array elements
     #[test]
     fn test_log() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
@@ -1485,10 +1710,217 @@ mod tests {
         assert_eq!(result.data(), &[0.0, 0.6931471805599453, 1.0986122886681098]);
     }
 
+    /// Tests sum of all array elements
     #[test]
     fn test_sum() {
         let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
         let result = arr.sum();
         assert_eq!(result, 6.0);
+    }
+
+    /// Tests calculation of array mean
+    #[test]
+    fn test_mean() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(arr.mean(), 2.5);
+    }
+
+    /// Tests calculation of array standard deviation
+    #[test]
+    fn test_std() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+        assert!((arr.std() - 1.118034).abs() < 1e-6);
+    }
+
+    /// Tests finding minimum values along specified axis
+    #[test]
+    fn test_min_axis() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 0.5, 6.0],
+        ]);
+        
+        let min_axis_0 = arr.min_axis(0).unwrap();
+        assert_eq!(min_axis_0.data(), &[1.0, 0.5, 3.0]);
+        
+        let min_axis_1 = arr.min_axis(1).unwrap();
+        assert_eq!(min_axis_1.data(), &[1.0, 0.5]);
+    }
+
+    /// Tests array concatenation along specified axis
+    #[test]
+    fn test_concatenate() {
+        let arr1 = NDArray::from_matrix(vec![
+            vec![1.0, 2.0],
+            vec![3.0, 4.0],
+        ]);
+        let arr2 = NDArray::from_matrix(vec![
+            vec![5.0, 6.0],
+            vec![7.0, 8.0],
+        ]);
+        
+        let concat_0 = arr1.concatenate(&arr2, 0).unwrap();
+        assert_eq!(concat_0.shape(), &[4, 2]);
+        assert_eq!(concat_0.data(), &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+        
+        let concat_1 = arr1.concatenate(&arr2, 1).unwrap();
+        assert_eq!(concat_1.shape(), &[2, 4]);
+        assert_eq!(concat_1.data(), &[1.0, 2.0, 5.0, 6.0, 3.0, 4.0, 7.0, 8.0]);
+    }
+
+    /// Tests broadcasting addition between arrays of different shapes
+    #[test]
+    fn test_broadcast_addition() {
+        let arr1 = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0]
+        ]);
+        let arr2 = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0]
+        ]);
+        let result = arr1 + &arr2;
+        assert_eq!(result.shape(), &[2, 3]);
+        assert_eq!(result.data(), &[2.0, 4.0, 6.0, 5.0, 7.0, 9.0]);
+    }
+
+    /// Tests finding maximum value in array
+    #[test]
+    fn test_max() {
+        let arr = NDArray::from_vec(vec![1.0, 5.0, 3.0, 2.0]);
+        assert_eq!(arr.max(), 5.0);
+    }
+
+    /// Tests sum operation with broadcasting
+    #[test]
+    fn test_sum_with_broadcasting() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0]
+        ]);
+        let sum_cols = arr.sum_axis(0);
+        assert_eq!(sum_cols.shape(), &[1, 3]);
+        assert_eq!(sum_cols.data(), &[5.0, 7.0, 9.0]);
+
+        // Test broadcasting the sum back
+        let result = arr + &sum_cols;
+        assert_eq!(result.data(), &[6.0, 9.0, 12.0, 9.0, 12.0, 15.0]);
+    }
+
+    /// Tests various scalar operations (multiplication and addition)
+    #[test]
+    fn test_scalar_operations() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        
+        // Test scalar multiplication from both sides
+        let result1 = arr.clone() * 2.0;
+        let result2 = 2.0 * &arr;
+        assert_eq!(result1.data(), result2.data());
+        
+        // Test scalar addition
+        let result3 = arr + 1.0;
+        assert_eq!(result3.data(), &[2.0, 3.0, 4.0]);
+    }
+
+    /// Tests error handling for invalid array addition
+    #[test]
+    #[should_panic(expected = "Shapes must match for element-wise addition")]
+    fn test_invalid_addition() {
+        let arr1 = NDArray::from_matrix(vec![vec![1.0, 2.0]]);
+        let arr2 = NDArray::from_matrix(vec![vec![1.0, 2.0, 3.0]]);
+        let _result = arr1 + arr2;
+    }
+
+    /// Tests chaining multiple operations together
+    #[test]
+    fn test_chained_operations() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let result = (arr * 2.0 + 1.0).multiply_scalar(3.0);
+        assert_eq!(result.data(), &[9.0, 15.0, 21.0]);
+    }
+
+    /// Tests absolute value calculation
+    #[test]
+    fn test_abs() {
+        let arr = NDArray::from_vec(vec![-1.0, 2.0, -3.0]);
+        let result = arr.abs();
+        assert_eq!(result.data(), &[1.0, 2.0, 3.0]);
+    }
+
+    /// Tests exponential power calculation
+    #[test]
+    fn test_power() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let result = arr.power(2.0);
+        assert_eq!(result.data(), &[1.0, 4.0, 9.0]);
+    }
+
+    /// Tests cumulative sum calculation
+    #[test]
+    fn test_cumsum() {
+        let arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+        let result = arr.cumsum();
+        assert_eq!(result.data(), &[1.0, 3.0, 6.0, 10.0]);
+    }
+
+    /// Tests rounding to specified decimals
+    #[test]
+    fn test_round() {
+        let arr = NDArray::from_vec(vec![1.234, 2.345, 3.456]);
+        let result = arr.round(2);
+        assert_eq!(result.data(), &[1.23, 2.35, 3.46]);
+    }
+
+    /// Tests getting indices that would sort the array
+    #[test]
+    fn test_argsort() {
+        let arr = NDArray::from_vec(vec![3.0, 1.0, 2.0]);
+        let indices = arr.argsort();
+        assert_eq!(indices, vec![1, 2, 0]);
+    }
+
+    /// Tests finding argmax along different axes
+    #[test]
+    fn test_argmax() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 3.0, 2.0],
+            vec![4.0, 2.0, 6.0]
+        ]);
+        
+        // Test global argmax
+        assert_eq!(arr.argmax(None), vec![5]); // 6.0 is at index 5
+        
+        // Test argmax along axis 0
+        assert_eq!(arr.argmax(Some(0)), vec![1, 0, 1]); // Max along columns
+        
+        // Test argmax along axis 1
+        assert_eq!(arr.argmax(Some(1)), vec![1, 2]); // Max along rows
+    }
+
+    /// Tests finding unique values in array
+    #[test]
+    fn test_unique() {
+        let arr = NDArray::from_vec(vec![3.0, 1.0, 2.0, 1.0, 3.0]);
+        let unique = arr.unique();
+        assert_eq!(unique.data(), &[1.0, 2.0, 3.0]);
+    }
+
+    /// Tests conditional value selection
+    #[test]
+    fn test_where_cond() {
+        let arr = NDArray::from_vec(vec![-1.0, 2.0, -3.0, 4.0]);
+        let result = arr.where_cond(|x| x > 0.0, 1.0, -1.0);
+        assert_eq!(result.data(), &[-1.0, 1.0, -1.0, 1.0]);
+    }
+
+    /// Tests median calculation
+    #[test]
+    fn test_median() {
+        // Test odd number of elements
+        let arr1 = NDArray::from_vec(vec![1.0, 3.0, 2.0]);
+        assert_eq!(arr1.median(), 2.0);
+        
+        // Test even number of elements
+        let arr2 = NDArray::from_vec(vec![1.0, 3.0, 2.0, 4.0]);
+        assert_eq!(arr2.median(), 2.5);
     }
 } 
