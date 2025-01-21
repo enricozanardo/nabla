@@ -1,6 +1,6 @@
 use rand::Rng;
 use rand_distr::StandardNormal;
-use std::ops::{Add, Sub, Mul};
+use std::ops::{Add, Sub, Mul, Div};
 
 #[derive(Debug, Clone)]
 pub struct NDArray {
@@ -943,31 +943,36 @@ impl NDArray {
     ///
     /// A new NDArray with the summed elements along the specified axis.
     pub fn sum_axis(&self, axis: usize) -> Self {
-        assert_eq!(self.ndim(), 2, "sum_axis is only defined for 2D arrays");
-        let (rows, cols) = (self.shape[0], self.shape[1]);
+        if axis >= self.shape.len() {
+            panic!("Axis {} out of bounds for shape {:?}", axis, self.shape);
+        }
 
         match axis {
             0 => {
-                // Sum along columns
-                let mut result_data = vec![0.0; cols];
+                let cols = self.shape[1];
+                let mut result = vec![0.0; cols];
+                
                 for j in 0..cols {
-                    for i in 0..rows {
-                        result_data[j] += self.data[i * cols + j];
+                    for i in 0..self.shape[0] {
+                        result[j] += self.data[i * cols + j];
                     }
                 }
-                NDArray::new(result_data, vec![1, cols])
-            }
+                
+                NDArray::new(result, vec![1, cols])
+            },
             1 => {
-                // Sum along rows
-                let mut result_data = vec![0.0; rows];
-                for i in 0..rows {
+                let cols = self.shape[1];
+                let mut result = vec![0.0; self.shape[0]];
+                
+                for i in 0..self.shape[0] {
                     for j in 0..cols {
-                        result_data[i] += self.data[i * cols + j];
+                        result[i] += self.data[i * cols + j];
                     }
                 }
-                NDArray::new(result_data, vec![rows, 1])
-            }
-            _ => panic!("Invalid axis: {}", axis),
+                
+                NDArray::new(result, vec![self.shape[0], 1])
+            },
+            _ => panic!("Unsupported axis {}", axis)
         }
     }
 
@@ -1347,6 +1352,55 @@ impl NDArray {
             sorted[mid]
         }
     }
+
+    /// Returns the maximum values along the specified axis
+    ///
+    /// # Arguments
+    ///
+    /// * `axis` - Axis along which to find maximum values
+    ///
+    /// # Returns
+    ///
+    /// NDArray containing maximum values along specified axis
+    pub fn max_axis(&self, axis: usize) -> Self {
+        if axis >= self.shape.len() {
+            panic!("Axis {} out of bounds for shape {:?}", axis, self.shape);
+        }
+
+        // Handle 1D array case
+        if self.shape.len() == 1 {
+            return NDArray::new(vec![self.data.iter().cloned().fold(f64::NEG_INFINITY, f64::max)], vec![1]);
+        }
+
+        // Handle 2D array case
+        match axis {
+            0 => {
+                let cols = self.shape[1];
+                let mut result = vec![f64::NEG_INFINITY; cols];
+                
+                for j in 0..cols {
+                    for i in 0..self.shape[0] {
+                        result[j] = result[j].max(self.data[i * cols + j]);
+                    }
+                }
+                
+                NDArray::new(result, vec![1, cols])
+            },
+            1 => {
+                let cols = self.shape[1];
+                let mut result = vec![f64::NEG_INFINITY; self.shape[0]];
+                
+                for i in 0..self.shape[0] {
+                    for j in 0..cols {
+                        result[i] = result[i].max(self.data[i * cols + j]);
+                    }
+                }
+                
+                NDArray::new(result, vec![self.shape[0], 1])
+            },
+            _ => panic!("Unsupported axis {}", axis)
+        }
+    }
 }
 
 impl Add for NDArray {
@@ -1446,6 +1500,137 @@ impl std::fmt::Display for NDArray {
     }
 }
 
+impl Sub<&NDArray> for NDArray {
+    type Output = Self;
+
+    fn sub(self, other: &NDArray) -> Self::Output {
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise subtraction");
+        }
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a - b)
+            .collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+/// Implements element-wise subtraction between two NDArray references
+///
+/// # Arguments
+///
+/// * `self` - The first NDArray reference
+/// * `other` - The second NDArray reference to subtract from the first
+///
+/// # Returns
+///
+/// A new NDArray containing the element-wise difference
+///
+/// # Panics
+///
+/// Panics if the shapes of the two arrays don't match
+impl<'a, 'b> Sub<&'b NDArray> for &'a NDArray {
+    type Output = NDArray;
+
+    fn sub(self, other: &'b NDArray) -> NDArray {
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise subtraction");
+        }
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a - b)
+            .collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+/// Implements element-wise addition between two NDArray references
+///
+/// # Arguments
+///
+/// * `self` - The first NDArray reference
+/// * `other` - The second NDArray reference to add to the first
+///
+/// # Returns
+///
+/// A new NDArray containing the element-wise sum
+///
+/// # Panics
+///
+/// Panics if the shapes of the two arrays don't match
+impl<'a, 'b> Add<&'b NDArray> for &'a NDArray {
+    type Output = NDArray;
+
+    fn add(self, other: &'b NDArray) -> NDArray {
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise addition");
+        }
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a + b)
+            .collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+/// Implements element-wise multiplication between two NDArray references
+///
+/// # Arguments
+///
+/// * `self` - The first NDArray reference
+/// * `other` - The second NDArray reference to multiply with the first
+///
+/// # Returns
+///
+/// A new NDArray containing the element-wise product
+///
+/// # Panics
+///
+/// Panics if the shapes of the two arrays don't match
+impl<'a, 'b> Mul<&'b NDArray> for &'a NDArray {
+    type Output = NDArray;
+
+    fn mul(self, other: &'b NDArray) -> NDArray {
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise multiplication");
+        }
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a * b)
+            .collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
+/// Implements element-wise division between two NDArray references
+///
+/// # Arguments
+///
+/// * `self` - The first NDArray reference (numerator)
+/// * `other` - The second NDArray reference (denominator)
+///
+/// # Returns
+///
+/// A new NDArray containing the element-wise quotient
+///
+/// # Panics
+///
+/// Panics if the shapes of the two arrays don't match
+impl<'a, 'b> Div<&'b NDArray> for &'a NDArray {
+    type Output = NDArray;
+
+    fn div(self, other: &'b NDArray) -> NDArray {
+        if self.shape != other.shape {
+            panic!("Shapes must match for element-wise division");
+        }
+        let data: Vec<f64> = self.data.iter()
+            .zip(other.data.iter())
+            .map(|(a, b)| a / b)
+            .collect();
+        NDArray::new(data, self.shape.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1521,6 +1706,7 @@ mod tests {
 
     /// Tests combination of multiple operations in sequence
     #[test]
+    #[allow(non_snake_case)]
     fn test_combined_operations() {
         let X = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
         let theta_1 = 2.0;
@@ -1922,5 +2108,58 @@ mod tests {
         // Test even number of elements
         let arr2 = NDArray::from_vec(vec![1.0, 3.0, 2.0, 4.0]);
         assert_eq!(arr2.median(), 2.5);
+    }
+
+    /// Tests finding maximum values along specified axis
+    #[test]
+    fn test_max_axis() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 0.5, 6.0],
+        ]);
+        
+        let max_axis_0 = arr.max_axis(0);
+        assert_eq!(max_axis_0.shape(), &[1, 3]);
+        assert_eq!(max_axis_0.data(), &[4.0, 2.0, 6.0]); // Max along columns
+        
+        let max_axis_1 = arr.max_axis(1);
+        assert_eq!(max_axis_1.shape(), &[2, 1]);
+        assert_eq!(max_axis_1.data(), &[3.0, 6.0]); // Max along rows
+    }
+
+    /// Tests element-wise subtraction between NDArray references
+    #[test]
+    fn test_element_wise_subtraction_ref() {
+        let arr1 = NDArray::from_vec(vec![5.0, 7.0, 9.0]);
+        let arr2 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let diff = &arr1 - &arr2;
+        assert_eq!(diff.data(), &[4.0, 5.0, 6.0]);
+    }
+
+    /// Tests element-wise addition between NDArray references
+    #[test]
+    fn test_element_wise_addition_ref() {
+        let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+        let sum = &arr1 + &arr2;
+        assert_eq!(sum.data(), &[5.0, 7.0, 9.0]);
+    }
+
+    /// Tests element-wise multiplication between NDArray references
+    #[test]
+    fn test_element_wise_multiplication_ref() {
+        let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+        let product = &arr1 * &arr2;
+        assert_eq!(product.data(), &[4.0, 10.0, 18.0]);
+    }
+
+    /// Tests element-wise division between NDArray references
+    #[test]
+    fn test_element_wise_division_ref() {
+        let arr1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+        let quotient = &arr1 / &arr2;
+        assert_eq!(quotient.data(), &[0.25, 0.4, 0.5]);
     }
 } 
