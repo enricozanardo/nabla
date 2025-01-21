@@ -9,7 +9,7 @@ use crate::nab_array::NDArray;
 pub struct NabMath;
 
 impl NDArray {
-/// Calculates the square root of each element in the array
+    /// Calculates the square root of each element in the array
     ///
     /// # Returns
     ///

@@ -1,8 +1,8 @@
 use crate::nab_array::NDArray;
+use crate::nab_loss::NabLoss;
+use crate::nabla::Nabla;
 
-
-
-impl NDArray {
+impl Nabla {
     /// Performs linear regression using gradient descent with multiple features
     ///
     /// # Arguments
@@ -29,11 +29,11 @@ impl NDArray {
             }).collect();
 
             // Calculate MSE
-            let mse = NDArray::mean_squared_error(y, &NDArray::from_vec(y_pred.clone()));
+            let mse = NabLoss::mean_squared_error(y, &NDArray::from_vec(y_pred.clone()));
             history.push(mse);
 
             // Calculate gradients using nabla
-            let gradients = Self::nabla(X, y, &NDArray::from_vec(y_pred), N);
+            let gradients = Nabla::linear_regression_gradients(X, y, &NDArray::from_vec(y_pred), N);
 
             // Update parameters
             for j in 0..theta.len() {
@@ -57,7 +57,7 @@ mod tests {
         let X = NDArray::from_matrix((0..100).map(|_| vec![2.0 * rng.gen::<f64>()]).collect());
         let y = NDArray::from_vec(X.data().iter().map(|&x| 4.0 + 3.0 * x + rng.gen::<f64>()).collect());
 
-        let (theta, history) = NDArray::linear_regression(&X, &y, 0.01, 2000);
+        let (theta, history) = Nabla::linear_regression(&X, &y, 0.01, 2000);
 
         assert!((theta[0] - 4.0).abs() < 1.0);
         assert!((theta[1] - 3.0).abs() < 1.0);
@@ -80,7 +80,7 @@ mod tests {
         let y = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]); // y = 1 + 1*x1 + 2*x2
 
         // Apply linear regression
-        let (theta, history) = NDArray::linear_regression(&X, &y, 0.01, 1000);
+        let (theta, history) = Nabla::linear_regression(&X, &y, 0.01, 1000);
 
         println!("{:?}", theta[0]);
         println!("{:?}", theta[1]);
