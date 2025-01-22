@@ -2,6 +2,7 @@ use rand::Rng;
 use rand_distr::StandardNormal;
 use std::ops::{Add, Sub, Mul, Div};
 
+
 #[derive(Debug, Clone)]
 pub struct NDArray {
     pub data: Vec<f64>,
@@ -1400,6 +1401,11 @@ impl NDArray {
             },
             _ => panic!("Unsupported axis {}", axis)
         }
+    }
+
+    /// Returns a string representation of the array
+    pub fn display(&self) -> String {
+        format!("NDArray(shape={:?}, data={:?})", self.shape, self.data)
     }
 }
 

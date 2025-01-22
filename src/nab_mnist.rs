@@ -1,18 +1,11 @@
 use crate::nab_array::NDArray;
 use crate::nab_io::save_nab;
+use crate::nab_utils::NabUtils;
+
+pub struct NabMnist;
 
 
-/// Represents a dataset split into training and testing sets
-// #[derive(Debug)]
-// pub struct DatasetSplit {
-//     pub train_images: NDArray,
-//     pub train_labels: NDArray,
-//     pub test_images: NDArray,
-//     pub test_labels: NDArray,
-// }
-
-
-impl NDArray {
+impl NabMnist {
         /// Converts MNIST CSV data to image and label .nab files
     /// 
     /// # Arguments
@@ -73,7 +66,7 @@ mod tests {
     fn test_mnist_load_and_split_dataset() -> std::io::Result<()> {
         std::fs::create_dir_all("datasets")?;
 
-        NDArray::mnist_csv_to_nab(
+        NabMnist::mnist_csv_to_nab(
             "csv/mnist_test.csv",
             "datasets/mnist_test_images.nab",
             "datasets/mnist_test_labels.nab",
@@ -81,7 +74,7 @@ mod tests {
         )?;
 
         let ((train_images, train_labels), (test_images, test_labels)) = 
-            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
+            NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0)?;
 
         assert_eq!(train_images.shape()[0] + test_images.shape()[0], 999);
         assert_eq!(train_labels.shape()[0] + test_labels.shape()[0], 999);
@@ -102,7 +95,7 @@ mod tests {
         println!("Starting test with CSV: {}", csv_path);
 
         // Convert CSV to .nab, skipping the first column
-        NDArray::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
+        NabUtils::csv_to_nab(csv_path, nab_path, expected_shape.clone(), true)?;
 
         // Load the .nab file
         let images = load_nab(nab_path)?;
@@ -126,7 +119,7 @@ mod tests {
         std::fs::create_dir_all("datasets")?;
 
         // Convert CSV to .nab files if not already done
-        NDArray::mnist_csv_to_nab(
+        NabMnist::mnist_csv_to_nab(
             "csv/mnist_test.csv",
             "datasets/mnist_test_images.nab",
             "datasets/mnist_test_labels.nab",
@@ -135,7 +128,7 @@ mod tests {
 
         // Load the dataset
         let ((train_images, train_labels), _) = 
-            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
+            NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0)?;
 
         // Extract and print the 42nd entry
         println!("Label of 42nd entry: {}", train_labels.get(42));
@@ -153,9 +146,9 @@ mod tests {
     #[test]
     fn test_mnist_normalize() -> std::io::Result<()> {
         let ((mut train_images, _), _) = 
-            NDArray::load_and_split_dataset("datasets/mnist_test", 80.0)?;
+            NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0)?;
         
-        train_images.normalize_with_range(0.0, 255.0);
+        NabUtils::normalize_with_range(&mut train_images, 0.0, 255.0);
         
         // Add this to check actual values
         let gray_image_42 = train_images.extract_sample(42);
