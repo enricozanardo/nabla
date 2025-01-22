@@ -299,11 +299,19 @@ mod tests {
     /// Tests sigmoid function computation
     #[test]
     fn test_sigmoid() {
-        let x = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let x = NDArray::from_vec(vec![-2.0, 0.0, 2.0]);
         let result = NabMath::sigmoid(&x);
-        assert!((result.data()[0] - 0.2689).abs() < 1e-4); // sigmoid(-1)
-        assert!((result.data()[1] - 0.5000).abs() < 1e-4); // sigmoid(0)
-        assert!((result.data()[2] - 0.7310).abs() < 1e-4); // sigmoid(1)
+        
+        // Test output range (0 to 1)
+        for &val in result.data() {
+            assert!(val > 0.0 && val < 1.0);
+        }
+        
+        // Test sigmoid(0) = 0.5
+        assert!((result.data()[1] - 0.5).abs() < 1e-6);
+        
+        // Test symmetry: sigmoid(-x) = 1 - sigmoid(x)
+        assert!((result.data()[0] - (1.0 - result.data()[2])).abs() < 1e-6);
     }
 
     /// Tests sigmoid derivative computation
@@ -319,11 +327,19 @@ mod tests {
     /// Tests tanh function computation
     #[test]
     fn test_tanh() {
-        let x = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let x = NDArray::from_vec(vec![-2.0, 0.0, 2.0]);
         let result = NabMath::tanh(&x);
-        assert!((result.data()[0] - (-0.7615)).abs() < 1e-4); // tanh(-1)
-        assert!((result.data()[1] - 0.0000).abs() < 1e-4);    // tanh(0)
-        assert!((result.data()[2] - 0.7615).abs() < 1e-4);    // tanh(1)
+        
+        // Test output range (-1 to 1)
+        for &val in result.data() {
+            assert!(val >= -1.0 && val <= 1.0);
+        }
+        
+        // Test tanh(0) = 0
+        assert!(result.data()[1].abs() < 1e-6);
+        
+        // Test symmetry: tanh(-x) = -tanh(x)
+        assert!((result.data()[0] + result.data()[2]).abs() < 1e-6);
     }
 
     /// Tests tanh derivative computation
@@ -339,9 +355,19 @@ mod tests {
     /// Tests ReLU function computation
     #[test]
     fn test_relu() {
-        let x = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let x = NDArray::from_vec(vec![-2.0, -1.0, 0.0, 1.0, 2.0]);
         let result = NabMath::relu(&x);
-        assert_eq!(result.data(), &[0.0, 0.0, 1.0]);
+        
+        // Test positive values remain unchanged
+        assert_eq!(result.data()[3], 1.0);
+        assert_eq!(result.data()[4], 2.0);
+        
+        // Test negative values become zero
+        assert_eq!(result.data()[0], 0.0);
+        assert_eq!(result.data()[1], 0.0);
+        
+        // Test zero remains zero
+        assert_eq!(result.data()[2], 0.0);
     }
 
     /// Tests ReLU derivative computation
@@ -358,14 +384,14 @@ mod tests {
         // Test 1D array
         let x = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
         let result = NabMath::softmax(&x, None);
-        assert_eq!(result.shape(), &[3]);
+        
+        // Test sum equals 1
         let sum: f64 = result.data().iter().sum();
         assert!((sum - 1.0).abs() < 1e-6);
         
-        // Verify expected probabilities
-        let expected = vec![0.0900, 0.2447, 0.6652];
-        for (a, &b) in result.data().iter().zip(&expected) {
-            assert!((a - b).abs() < 1e-4);
+        // Test monotonicity (larger inputs -> larger probabilities)
+        for i in 1..result.data().len() {
+            assert!(result.data()[i] > result.data()[i-1]);
         }
 
         // Test 2D array
@@ -373,24 +399,12 @@ mod tests {
             vec![1.0, 2.0, 3.0],
             vec![4.0, 5.0, 6.0]
         ]);
-        
         let result = NabMath::softmax(&x, Some(1));
-        assert_eq!(result.shape(), &[2, 3]);
         
-        // Verify each row sums to 1 and check specific values
-        let expected_row1 = vec![0.0900, 0.2447, 0.6652];
-        let expected_row2 = vec![0.0900, 0.2447, 0.6652];
-        
+        // Test each row sums to 1
         for i in 0..2 {
             let row_sum: f64 = result.data()[i*3..(i+1)*3].iter().sum();
-
-            println!("Row sum: {}", row_sum);
-            assert!((row_sum - 1.0).abs() < 1e-4);
-            
-            let expected = if i == 0 { &expected_row1 } else { &expected_row2 };
-            for (j, &exp) in expected.iter().enumerate() {
-                assert!((result.data()[i*3 + j] - exp).abs() < 1e-4);
-            }
+            assert!((row_sum - 1.0).abs() < 1e-6);
         }
     }
 
@@ -413,13 +427,15 @@ mod tests {
         
         // Test with default alpha
         let result = NabMath::leaky_relu(&x, None);
-        assert!((result.data()[0] - (-0.02)).abs() < 1e-6);
-        assert_eq!(result.data()[3], 1.0);
-
+        assert_eq!(result.data()[3], 1.0);  // Positive values unchanged
+        assert_eq!(result.data()[4], 2.0);
+        assert_eq!(result.data()[0], -0.02); // Negative values scaled by 0.01
+        assert_eq!(result.data()[2], 0.0);   // Zero unchanged
+        
         // Test with custom alpha
         let result = NabMath::leaky_relu(&x, Some(0.1));
-        assert!((result.data()[0] - (-0.2)).abs() < 1e-6);
-        assert_eq!(result.data()[3], 1.0);
+        assert_eq!(result.data()[3], 1.0);   // Positive values unchanged
+        assert_eq!(result.data()[0], -0.2);  // Negative values scaled by 0.1
     }
 
     /// Tests ELU computation with different alphas

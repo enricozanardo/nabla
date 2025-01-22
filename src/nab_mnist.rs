@@ -1,6 +1,5 @@
 use crate::nab_array::NDArray;
 use crate::nab_io::save_nab;
-use crate::nab_utils::NabUtils;
 
 pub struct NabMnist;
 
@@ -61,6 +60,7 @@ mod tests {
     use super::*;
     use std::io;
     use crate::nab_io::load_nab;
+    use crate::nab_utils::NabUtils;
 
     #[test]
     fn test_mnist_load_and_split_dataset() -> std::io::Result<()> {
