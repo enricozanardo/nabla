@@ -1,7 +1,6 @@
 use rand::Rng;
-use rand_distr::StandardNormal;
+use rand_distr::{StandardNormal, Uniform, Distribution};
 use std::ops::{Add, Sub, Mul, Div};
-
 
 #[derive(Debug, Clone)]
 pub struct NDArray {
@@ -1407,6 +1406,71 @@ impl NDArray {
     pub fn display(&self) -> String {
         format!("NDArray(shape={:?}, data={:?})", self.shape, self.data)
     }
+
+    /// Creates a new NDArray with random uniform values between 0 and 1
+    /// 
+    /// # Arguments
+    /// 
+    /// * `shape` - Shape of the array
+    /// 
+    /// # Example
+    /// ```
+    /// use nabla_ml::nab_array::NDArray;
+    /// 
+    /// let arr = NDArray::rand_uniform(&[2, 3]);
+    /// assert_eq!(arr.shape(), vec![2, 3]);
+    /// ```
+    pub fn rand_uniform(shape: &[usize]) -> Self {
+        let size: usize = shape.iter().product();
+        let uniform = Uniform::new(0.0, 1.0);
+        let mut rng = rand::thread_rng();
+        
+        let data: Vec<f64> = (0..size)
+            .map(|_| uniform.sample(&mut rng))
+            .collect();
+
+        Self::new(data, shape.to_vec())
+    }
+
+    /// Calculates the mean along the specified axis
+    /// 
+    /// # Arguments
+    /// * `axis` - Axis along which to calculate mean (0 for columns, 1 for rows)
+    pub fn mean_axis(&self, axis: usize) -> Self {
+        let sum = self.sum_axis(axis);
+        let n = if axis == 0 { self.shape[0] } else { self.shape[1] } as f64;
+        sum.multiply_scalar(1.0 / n)
+    }
+
+    /// Calculates the variance along the specified axis
+    /// 
+    /// # Arguments
+    /// * `axis` - Axis along which to calculate variance (0 for columns, 1 for rows)
+    pub fn var_axis(&self, axis: usize) -> Self {
+        let mean = self.mean_axis(axis);
+        
+        // For axis 0, we need to broadcast the mean to match original shape
+        let broadcasted_mean = if axis == 0 {
+            let mut result = Vec::with_capacity(self.data.len());
+            let cols = self.shape[1];
+            
+            // Repeat mean values for each row
+            for _ in 0..self.shape[0] {
+                for j in 0..cols {
+                    result.push(mean.data[j]);
+                }
+            }
+            
+            NDArray::new(result, self.shape.clone())
+        } else {
+            mean
+        };
+
+        let centered = self.subtract(&broadcasted_mean);
+        let squared = centered.multiply(&centered);
+        let n = if axis == 0 { self.shape[0] } else { self.shape[1] } as f64;
+        squared.sum_axis(axis).multiply_scalar(1.0 / n)
+    }
 }
 
 impl Add for NDArray {
@@ -1640,6 +1704,7 @@ impl<'a, 'b> Div<&'b NDArray> for &'a NDArray {
 #[cfg(test)]
 mod tests {
     use super::*;
+   
 
     /// Tests basic NDArray creation with explicit data and shape
     #[test]
@@ -2167,5 +2232,61 @@ mod tests {
         let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
         let quotient = &arr1 / &arr2;
         assert_eq!(quotient.data(), &[0.25, 0.4, 0.5]);
+    }
+
+    /// Tests random uniform distribution generation
+    #[test]
+    fn test_rand_uniform() {
+        // Test shape
+        let shape = [2, 3];
+        let arr = NDArray::rand_uniform(&shape);
+        assert_eq!(arr.shape(), &[2, 3]);
+
+        // Test range (should be between 0 and 1)
+        for &val in arr.data() {
+            assert!(val >= 0.0 && val <= 1.0);
+        }
+
+        // Test randomness (generate multiple arrays and verify they're different)
+        let arr2 = NDArray::rand_uniform(&shape);
+        assert_ne!(arr.data(), arr2.data(), "Random arrays should be different");
+
+        // Test distribution (roughly uniform)
+        let large_arr = NDArray::rand_uniform(&[1000]);
+        let mean = large_arr.mean();
+        let std = large_arr.std();
+        
+        // For uniform distribution between 0 and 1:
+        // Expected mean = 0.5
+        // Expected std = 1/sqrt(12) ≈ 0.289
+        assert!((mean - 0.5).abs() < 0.1, "Mean should be approximately 0.5");
+        assert!((std - 0.289).abs() < 0.1, "Std should be approximately 0.289");
+    }
+
+    #[test]
+    fn test_statistical_functions() {
+        let arr = NDArray::from_matrix(vec![
+            vec![1.0, 2.0, 3.0],
+            vec![4.0, 5.0, 6.0],
+        ]);
+
+        // Test mean_axis
+        let mean_cols = arr.mean_axis(0);
+        assert_eq!(mean_cols.shape(), &[1, 3]);
+        assert_eq!(mean_cols.data(), &[2.5, 3.5, 4.5]);
+
+        // Test var_axis
+        let var_cols = arr.var_axis(0);
+        assert_eq!(var_cols.shape(), &[1, 3]);
+        assert_eq!(var_cols.data(), &[2.25, 2.25, 2.25]);
+
+        // Test sqrt (using NabMath trait)
+        let sqrt = arr.sqrt();  // This now uses the implementation from nab_math.rs
+        assert_eq!(sqrt.data(), &[1.0, 2.0_f64.sqrt(), 3.0_f64.sqrt(), 
+                                 2.0, 5.0_f64.sqrt(), 6.0_f64.sqrt()]);
+
+        // Test add_scalar (using NabMath trait)
+        let added = arr.add_scalar(1.0);  // This now uses the implementation from nab_math.rs
+        assert_eq!(added.data(), &[2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
     }
 } 
