@@ -1,9 +1,9 @@
 use crate::nab_array::NDArray;
 
-// pub trait Loss {
-//     fn forward(&self, predictions: &NDArray, targets: &NDArray) -> f64;
-//     fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray;
-// }
+pub trait Loss {
+    fn forward(&self, predictions: &NDArray, targets: &NDArray) -> f64;
+    fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray;
+}
 
 // pub struct CategoricalCrossentropy;
 
@@ -59,6 +59,17 @@ impl NabLoss {
         -loss.iter().sum::<f64>() / y_true.shape()[0] as f64
     }
 
+}
+
+impl Loss for NabLoss {
+    fn forward(&self, predictions: &NDArray, targets: &NDArray) -> f64 {
+        NabLoss::mean_squared_error(predictions, targets)
+    }
+
+    fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray {
+        // Default to MSE gradient
+        predictions.subtract(targets).multiply_scalar(2.0 / predictions.shape()[0] as f64)
+    }
 }
 
 #[cfg(test)]

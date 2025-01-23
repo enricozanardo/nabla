@@ -3,6 +3,7 @@ use crate::nab_activations::NablaActivation;
 
 /// Represents a layer's configuration and state
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct NabLayer {
     /// Layer type identifier
     layer_type: String,
@@ -46,6 +47,9 @@ pub struct NabLayer {
     batch_var: Option<NDArray>,
     /// Normalized values before scaling (for backprop)
     normalized: Option<NDArray>,
+    pub node_index: Option<usize>,
+    /// Input connections for the layer
+    input_nodes: Option<Vec<usize>>,
 }
 
 impl NabLayer {
@@ -87,6 +91,8 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
@@ -143,6 +149,8 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
@@ -185,6 +193,8 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
@@ -233,6 +243,8 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
@@ -281,6 +293,8 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
@@ -344,29 +358,70 @@ impl NabLayer {
             batch_mean: None,
             batch_var: None,
             normalized: None,
+            node_index: None,
+            input_nodes: None,
         }
     }
 
-    /// Forward pass for the layer
-    pub fn forward(&mut self, input: &NDArray, training: bool) -> NDArray {
-        match self.layer_type.as_str() {
-            "Dense" => self.dense_forward(input, training),
-            "Input" => {
-                self.input_cache = Some(input.clone());
-                input.clone()
-            },
-            "Activation" => self.activation_forward(input, training),
-            "Flatten" => self.flatten_forward(input, training),
-            "Dropout" => self.dropout_forward(input, training),
-            "BatchNorm" => self.batch_norm_forward(input, training),
-            _ => panic!("Unknown layer type: {}", self.layer_type),
+    /// Helper function to broadcast 1D array to match batch dimension
+    fn broadcast_to_batch(&self, array: &NDArray, batch_size: usize) -> NDArray {
+        let features = array.data().len();
+        let mut broadcasted = Vec::with_capacity(batch_size * features);
+        for _ in 0..batch_size {
+            broadcasted.extend(array.data());
         }
+        NDArray::new(broadcasted, vec![batch_size, features])
+    }
+
+    /// Helper function to ensure 1D shape for statistics
+    fn reshape_to_1d(&self, array: &NDArray) -> NDArray {
+        let features = array.data().len();
+        array.reshape(&[features]).expect("Failed to reshape to 1D")
+    }
+
+    /// Forward pass through the layer
+    pub fn forward(&mut self, input: &NDArray, training: bool) -> NDArray {
+        // Cache input for all layers
+        self.input_cache = Some(input.clone());
+        
+        let output = match self.layer_type.as_str() {
+            "Dense" => {
+                let out = self.dense_forward(input);
+                self.output_cache = Some(out.clone());
+                out
+            },
+            "BatchNorm" => {
+                self.batch_norm_forward(input, training)
+            },
+            "Activation" => {
+                let out = match self.activation.as_ref().unwrap().as_str() {
+                    "relu" => NablaActivation::relu_forward(input),
+                    "sigmoid" => NablaActivation::sigmoid_forward(input),
+                    "tanh" => NablaActivation::tanh_forward(input),
+                    "softmax" => NablaActivation::softmax_forward(input, None),
+                    _ => input.clone(),
+                };
+                self.output_cache = Some(out.clone());
+                out
+            },
+            "Flatten" => {
+                let out = self.flatten_forward(input, training);
+                self.output_cache = Some(out.clone());
+                out
+            },
+            "Dropout" => {
+                let out = self.dropout_forward(input, training);
+                self.output_cache = Some(out.clone());
+                out
+            },
+            _ => input.clone()
+        };
+        
+        output
     }
 
     /// Forward pass for Dense layer
-    fn dense_forward(&mut self, input: &NDArray, _training: bool) -> NDArray {
-        self.input_cache = Some(input.clone());
-        
+    fn dense_forward(&self, input: &NDArray) -> NDArray {
         // 1. Linear transformation
         let weights = self.weights.as_ref().unwrap();
         let biases = self.biases.as_ref().unwrap();
@@ -385,14 +440,14 @@ impl NabLayer {
                 "relu" => NablaActivation::relu_forward(&linear_output),
                 "sigmoid" => NablaActivation::sigmoid_forward(&linear_output),
                 "tanh" => NablaActivation::tanh_forward(&linear_output),
+                "softmax" => NablaActivation::softmax_forward(&linear_output, None),
                 _ => panic!("Unknown activation type: {}", act_type),
             }
         } else {
             linear_output
         };
 
-        self.output_cache = Some(output.clone());
-        output
+        output.clone()
     }
 
     /// Forward pass for Activation layer
@@ -450,57 +505,51 @@ impl NabLayer {
     /// Forward pass for BatchNormalization layer
     fn batch_norm_forward(&mut self, input: &NDArray, training: bool) -> NDArray {
         self.input_cache = Some(input.clone());
-        
         let batch_size = input.shape()[0];
-        let weights = self.weights.as_ref().unwrap();
-        let biases = self.biases.as_ref().unwrap();
         
-        // Calculate batch statistics
-        let batch_mean = input.mean_axis(0);  // Shape: [1, features]
-        
-        // Create broadcasted mean for subtraction
-        let mut broadcasted_mean = Vec::with_capacity(input.data().len());
-        for _ in 0..batch_size {
-            broadcasted_mean.extend(batch_mean.data());
-        }
-        let broadcasted_mean = NDArray::new(broadcasted_mean, input.shape().to_vec());
-        
-        // Center the input
+        // Calculate statistics
+        let (mean, var) = if training {
+            // Compute batch statistics and ensure 1D shape [features]
+            let batch_mean = self.reshape_to_1d(&input.mean_axis(0));
+            
+            // Compute variance using broadcasted mean
+            let broadcasted_mean = self.broadcast_to_batch(&batch_mean, batch_size);
+            let centered = input.subtract(&broadcasted_mean);
+            let batch_var = self.reshape_to_1d(&centered.multiply(&centered).mean_axis(0));
+            
+            // Update running statistics (all 1D)
+            if let (Some(running_mean), Some(running_var)) = 
+                (&mut self.running_mean, &mut self.running_var) 
+            {
+                let momentum = self.momentum.unwrap();
+                *running_mean = running_mean.multiply_scalar(momentum)
+                    .add(&batch_mean.multiply_scalar(1.0 - momentum));
+                *running_var = running_var.multiply_scalar(momentum)
+                    .add(&batch_var.multiply_scalar(1.0 - momentum));
+            }
+            
+            self.batch_mean = Some(batch_mean.clone());
+            self.batch_var = Some(batch_var.clone());
+            
+            (batch_mean, batch_var)
+        } else {
+            (self.running_mean.as_ref().unwrap().clone(), 
+             self.running_var.as_ref().unwrap().clone())
+        };
+
+        // Broadcast 1D statistics to match input shape
+        let broadcasted_mean = self.broadcast_to_batch(&mean, batch_size);
+        let broadcasted_var = self.broadcast_to_batch(&var, batch_size);
+        let broadcasted_weights = self.broadcast_to_batch(self.weights.as_ref().unwrap(), batch_size);
+        let broadcasted_biases = self.broadcast_to_batch(self.biases.as_ref().unwrap(), batch_size);
+
+        // All operations now use properly broadcasted arrays
         let centered = input.subtract(&broadcasted_mean);
-        
-        // Calculate variance
-        let batch_var = centered.multiply(&centered).mean_axis(0);
-        
-        // Create broadcasted variance for division
-        let mut broadcasted_var = Vec::with_capacity(input.data().len());
-        for _ in 0..batch_size {
-            broadcasted_var.extend(batch_var.data());
-        }
-        let broadcasted_var = NDArray::new(broadcasted_var, input.shape().to_vec());
-        
-        // Normalize
         let std_dev = broadcasted_var.add_scalar(self.epsilon.unwrap()).sqrt();
         let normalized = centered.divide(&std_dev);
-        
-        // Create broadcasted weights and biases
-        let mut broadcasted_weights = Vec::with_capacity(input.data().len());
-        let mut broadcasted_biases = Vec::with_capacity(input.data().len());
-        for _ in 0..batch_size {
-            broadcasted_weights.extend(weights.data());
-            broadcasted_biases.extend(biases.data());
-        }
-        let broadcasted_weights = NDArray::new(broadcasted_weights, input.shape().to_vec());
-        let broadcasted_biases = NDArray::new(broadcasted_biases, input.shape().to_vec());
-        
-        // Scale and shift
+        self.normalized = Some(normalized.clone());
+
         let output = normalized.multiply(&broadcasted_weights).add(&broadcasted_biases);
-        
-        if training {
-            self.batch_mean = Some(batch_mean);
-            self.batch_var = Some(batch_var);
-            self.normalized = Some(normalized.clone());
-        }
-        
         self.output_cache = Some(output.clone());
         output
     }
@@ -641,6 +690,50 @@ impl NabLayer {
     /// Returns whether the layer is trainable
     pub fn is_trainable(&self) -> bool {
         self.trainable
+    }
+
+    /// Computes output shape for a given input shape
+    pub fn compute_output_shape(&self, input_shape: &[usize]) -> Vec<usize> {
+        match self.layer_type.as_str() {
+            "Dense" => {
+                // Preserve batch size if present, append output dimension
+                if input_shape.len() > 1 {
+                    vec![input_shape[0], self.output_shape[0]]
+                } else {
+                    vec![self.output_shape[0]]
+                }
+            },
+            "Input" => {
+                // Always preserve input shape including batch size
+                input_shape.to_vec()
+            },
+            "Flatten" => {
+                // Preserve batch size, flatten rest
+                let flat_size: usize = input_shape[1..].iter().product();
+                vec![input_shape[0], flat_size]
+            },
+            _ => {
+                // For other layers, preserve batch size and use stored output shape
+                if input_shape.len() > 1 {
+                    let mut shape = vec![input_shape[0]];
+                    shape.extend(self.output_shape.iter());
+                    shape
+                } else {
+                    self.output_shape.clone()
+                }
+            }
+        }
+    }
+
+    // Sets the node index for the layer
+    pub fn set_node_index(&mut self, index: usize) {
+        self.node_index = Some(index);
+    }
+
+    // Add new instance method for setting inputs
+    pub fn set_inputs(&mut self, inputs: Vec<usize>) {
+        // Store input connections in layer
+        self.input_nodes = Some(inputs);
     }
 }
 
@@ -959,5 +1052,32 @@ mod tests {
         // Verify weight and bias gradients were computed
         assert!(layer.weight_gradients.is_some());
         assert!(layer.bias_gradients.is_some());
+    }
+
+    #[test]
+    fn test_compute_output_shape() {
+        // Test for Input layer
+        let input_layer = NabLayer::input(vec![784], Some("input_layer"));
+        assert_eq!(input_layer.compute_output_shape(&[32, 784]), vec![32, 784]);
+
+        // Test for Dense layer
+        let dense_layer = NabLayer::dense(784, 128, Some("relu"), Some("dense_layer"));
+        assert_eq!(dense_layer.compute_output_shape(&[32, 784]), vec![32, 128]);
+
+        // Test for Activation layer
+        let activation_layer = NabLayer::activation("relu", vec![128], Some("activation_layer"));
+        assert_eq!(activation_layer.compute_output_shape(&[32, 128]), vec![32, 128]);
+
+        // Test for Flatten layer
+        let flatten_layer = NabLayer::flatten(vec![28, 28, 1], Some("flatten_layer"));
+        assert_eq!(flatten_layer.compute_output_shape(&[32, 28, 28, 1]), vec![32, 784]);
+
+        // Test for Dropout layer
+        let dropout_layer = NabLayer::dropout(vec![128], 0.5, Some("dropout_layer"));
+        assert_eq!(dropout_layer.compute_output_shape(&[32, 128]), vec![32, 128]);
+
+        // Test for BatchNorm layer
+        let batch_norm_layer = NabLayer::batch_norm(vec![128], None, None, Some("batch_norm_layer"));
+        assert_eq!(batch_norm_layer.compute_output_shape(&[32, 128]), vec![32, 128]);
     }
 }

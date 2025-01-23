@@ -4,6 +4,7 @@ pub struct NablaOptimizer;
 
 
 impl NablaOptimizer {
+
     /// Performs Stochastic Gradient Descent (SGD) update
     /// 
     /// w = w - learning_rate * gradient

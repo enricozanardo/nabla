@@ -9,7 +9,7 @@ pub mod nab_mnist;
 pub mod nab_activations;
 pub mod nab_optimizers;
 pub mod nab_layers;
-// pub mod nab_model;
+pub mod nab_model;
 
 
 
