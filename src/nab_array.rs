@@ -1471,6 +1471,60 @@ impl NDArray {
         let n = if axis == 0 { self.shape[0] } else { self.shape[1] } as f64;
         squared.sum_axis(axis).multiply_scalar(1.0 / n)
     }
+
+    /// Converts a class vector (integers) to binary class matrix (one-hot encoding)
+    /// 
+    /// # Arguments
+    /// 
+    /// * `num_classes` - Optional number of classes. If None, it will be inferred from the data
+    /// 
+    /// # Returns
+    /// 
+    /// A 2D NDArray where each row is a one-hot encoded vector
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use nabla_ml::nab_array::NDArray;
+    /// 
+    /// let labels = NDArray::from_vec(vec![0.0, 1.0, 2.0]);
+    /// let categorical = labels.to_categorical(None);
+    /// assert_eq!(categorical.shape(), &[3, 3]);
+    /// assert_eq!(categorical.data(), &[1.0, 0.0, 0.0,
+    ///                                 0.0, 1.0, 0.0,
+    ///                                 0.0, 0.0, 1.0]);
+    /// ```
+    pub fn to_categorical(&self, num_classes: Option<usize>) -> Self {
+        // Ensure input is 1D
+        assert_eq!(self.ndim(), 1, "Input must be a 1D array");
+        
+        // Find min and max labels to handle negative values
+        let min_label = self.data().iter()
+            .fold(f64::INFINITY, |a, &b| a.min(b)) as i32;
+        let max_label = self.data().iter()
+            .fold(f64::NEG_INFINITY, |a, &b| a.max(b)) as i32;
+            
+        // Determine number of classes
+        let n_classes = num_classes.unwrap_or_else(|| 
+            (max_label - min_label + 1) as usize
+        );
+        
+        let n_samples = self.shape()[0];
+        let mut categorical = vec![0.0; n_samples * n_classes];
+        
+        // Fill the categorical array
+        for (sample_idx, &label) in self.data().iter().enumerate() {
+            // Shift label to be non-negative
+            let shifted_label = (label as i32 - min_label) as usize;
+            assert!(shifted_label < n_classes, 
+                "Label {} is out of range for {} classes", label, n_classes);
+            
+            let row_offset = sample_idx * n_classes;
+            categorical[row_offset + shifted_label] = 1.0;
+        }
+        
+        NDArray::new(categorical, vec![n_samples, n_classes])
+    }
 }
 
 impl Add for NDArray {
@@ -2288,5 +2342,37 @@ mod tests {
         // Test add_scalar (using NabMath trait)
         let added = arr.add_scalar(1.0);  // This now uses the implementation from nab_math.rs
         assert_eq!(added.data(), &[2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+    }
+
+    #[test]
+    fn test_to_categorical() {
+        // Test basic functionality
+        let labels = NDArray::from_vec(vec![0.0, 1.0, 2.0]);
+        let categorical = labels.to_categorical(None);
+        assert_eq!(categorical.shape(), &[3, 3]);
+        assert_eq!(categorical.data(), &[
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0
+        ]);
+
+        // Test with explicit num_classes
+        let labels = NDArray::from_vec(vec![0.0, 1.0]);
+        let categorical = labels.to_categorical(Some(3));
+        assert_eq!(categorical.shape(), &[2, 3]);
+        assert_eq!(categorical.data(), &[
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0
+        ]);
+
+        // Test with negative labels
+        let labels = NDArray::from_vec(vec![-1.0, 0.0, 1.0]);
+        let categorical = labels.to_categorical(Some(3));
+        assert_eq!(categorical.shape(), &[3, 3]);
+        assert_eq!(categorical.data(), &[
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0
+        ]);
     }
 } 
