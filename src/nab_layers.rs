@@ -1,6 +1,5 @@
 use crate::nab_array::NDArray;
 use crate::nab_activations::NablaActivation;
-use std::ops::{Sub, Div};
 
 /// Represents a layer's configuration and state
 #[allow(dead_code)]
@@ -583,7 +582,7 @@ impl NabLayer {
     }
 
     /// Backward pass for BatchNormalization layer
-    #[allow(dead_code)]
+    #[allow(unused_variables)]
     fn batch_norm_backward(&mut self, gradient: &NDArray) -> NDArray {
         let input = self.input_cache.as_ref().unwrap();
         let batch_size = input.shape()[0];
