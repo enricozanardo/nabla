@@ -207,6 +207,22 @@ impl NabUtils {
         result
     }
 
+    // /// Convert class indices to one-hot encoded vectors
+    // pub fn to_one_hot(labels: &NDArray, num_classes: usize) -> Result<NDArray, String> {
+    //     let num_samples = labels.shape()[0];
+    //     let mut one_hot = NDArray::zeros(vec![num_samples, num_classes]);
+        
+    //     for (i, &label) in labels.data().iter().enumerate() {
+    //         let label_idx = label as usize;
+    //         if label_idx >= num_classes {
+    //             return Err(format!("Label {} exceeds number of classes {}", label_idx, num_classes));
+    //         }
+    //         one_hot.set(vec![i, label_idx], 1.0);
+    //     }
+        
+    //     Ok(one_hot)
+    // }
+
 }
 
 

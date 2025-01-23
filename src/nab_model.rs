@@ -4,6 +4,7 @@ use crate::nab_optimizers::NablaOptimizer;
 use crate::nab_loss::NabLoss;
 use std::collections::HashMap;
 
+
 /// Represents a node in the computation graph
 pub struct Node {
     pub layer: NabLayer,
@@ -157,17 +158,74 @@ impl NabModel {
     }
 
     /// Trains for one epoch
-    fn train_epoch(&mut self, x: &NDArray, y: &NDArray, _batch_size: usize) -> HashMap<String, f64> {
+    fn train_epoch(&mut self, x: &NDArray, y: &NDArray, batch_size: usize) -> HashMap<String, f64> {
         let mut metrics = HashMap::new();
-        let predictions = self.predict(x);
+        let mut total_loss = 0.0;
+        let mut total_correct = 0;
+        let num_samples = x.shape()[0];
+        let num_batches = (num_samples + batch_size - 1) / batch_size;
+
+        // Process mini-batches
+        for batch_idx in 0..num_batches {
+            let start_idx = batch_idx * batch_size;
+            let end_idx = (start_idx + batch_size).min(num_samples);
+            
+            // Get batch data
+            let x_batch = x.slice(start_idx, end_idx);
+            let y_batch = y.slice(start_idx, end_idx);
+            
+            // Forward and backward pass as one operation
+            let (predictions, loss) = self.forward_backward(&x_batch, &y_batch);
+            
+            // Accumulate metrics
+            total_loss += loss * (end_idx - start_idx) as f64;
+            total_correct += self.count_correct(&predictions, &y_batch);
+        }
         
-        let loss = self.calculate_loss(&predictions, y);
-        metrics.insert("loss".to_string(), loss);
-        
-        let acc = self.calculate_accuracy(&predictions, y);
-        metrics.insert("accuracy".to_string(), acc);
+        // Calculate average metrics
+        metrics.insert("loss".to_string(), total_loss / num_samples as f64);
+        metrics.insert("accuracy".to_string(), total_correct as f64 / num_samples as f64);
         
         metrics
+    }
+
+    fn forward_backward(&mut self, x_batch: &NDArray, y_batch: &NDArray) -> (NDArray, f64) {
+        // Forward pass
+        let predictions = self.predict(x_batch);
+        let loss = self.calculate_loss(&predictions, y_batch);
+        let loss_grad = self.calculate_loss_gradient(&predictions, y_batch);
+        
+        // Backward pass
+        let mut gradient = loss_grad;
+        let learning_rate = self.learning_rate;  // Cache learning rate
+        
+        for layer in self.layers.iter_mut().rev() {
+            if layer.is_trainable() {
+                gradient = layer.backward(&gradient);
+                
+                // Update weights using cached learning rate
+                if let Some(weights) = layer.weights.as_mut() {
+                    let weight_grads = layer.weight_gradients.as_ref().unwrap();
+                    NablaOptimizer::sgd_update(weights, weight_grads, learning_rate);
+                }
+                if let Some(biases) = layer.biases.as_mut() {
+                    let bias_grads = layer.bias_gradients.as_ref().unwrap();
+                    NablaOptimizer::sgd_update(biases, bias_grads, learning_rate);
+                }
+            }
+        }
+        
+        (predictions, loss)
+    }
+
+    fn count_correct(&self, predictions: &NDArray, targets: &NDArray) -> usize {
+        let pred_classes = predictions.argmax(Some(1));
+        let true_classes = targets.argmax(Some(1));
+        
+        pred_classes.iter()
+            .zip(true_classes.iter())
+            .filter(|(&p, &t)| p == t)
+            .count()
     }
 
     /// Creates a new model from input and output nodes
@@ -340,23 +398,6 @@ impl NabModel {
         current
     }
 
-    fn update_weights(&mut self, weights: &mut NDArray, gradients: &NDArray) {
-        match self.optimizer_type.as_str() {
-            "sgd" => NablaOptimizer::sgd_update(weights, gradients, self.learning_rate),
-            "momentum" => {
-                let mut velocity = NDArray::zeros(weights.shape().to_vec());
-                NablaOptimizer::sgd_momentum_update(
-                    weights, 
-                    gradients, 
-                    &mut velocity,
-                    self.learning_rate,
-                    0.9
-                );
-            }
-            _ => NablaOptimizer::sgd_update(weights, gradients, self.learning_rate),
-        }
-    }
-
     fn calculate_loss(&self, predictions: &NDArray, targets: &NDArray) -> f64 {
         match self.loss_type.as_str() {
             "mse" => NabLoss::mean_squared_error(predictions, targets),
@@ -388,51 +429,87 @@ mod tests {
     use crate::nab_activations::NablaActivation;
     use crate::nab_optimizers::NablaOptimizer;
     use crate::nab_loss::NabLoss;
-
+    use crate::nab_mnist::NabMnist;
+    use crate::nab_utils::NabUtils;
     #[test]
-    fn test_mnist_classification() {
-        // Create model architecture
-        let input = NabModel::input(vec![784]);
-        
-        // Build network with proper layer order
-        let dense1 = NabLayer::dense(784, 128, Some("relu"), Some("dense1"));
+    fn test_mnist_full_pipeline() {
+        // Step 1: Load MNIST data
+        println!("Loading MNIST data...");
+        let ((x_train, y_train), (x_test, y_test)) = NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0).unwrap();
+
+        // Step 2: Normalize input data (scale pixels to 0-1)
+        println!("Normalizing data...");
+        let x_train = x_train.divide_scalar(255.0);
+        let x_test = x_test.divide_scalar(255.0);
+
+        // Step 2.5: Reshape input data
+        let x_train = x_train.reshape(&[x_train.shape()[0], 784])
+            .expect("Failed to reshape training data");
+        let x_test = x_test.reshape(&[x_test.shape()[0], 784])
+            .expect("Failed to reshape test data");
+
+        // Step 2.6: One-hot encode target data
+        println!("One-hot encoding targets...");
+        let y_train = NDArray::one_hot_encode(&y_train);
+        let y_test = NDArray::one_hot_encode(&y_test);
+            
+
+        println!("Data shapes:");
+        println!("x_train: {:?}", x_train.shape());
+        println!("y_train: {:?}", y_train.shape());
+        println!("x_test: {:?}", x_test.shape());
+        println!("y_test: {:?}", y_test.shape());
+
+        // Step 3: Create model architecture
+        println!("Creating model...");
+        let input = NabModel::input(vec![784]);  // 28x28 = 784 pixels
+
+        // Dense layer with 512 units and ReLU activation
+        let dense1 = NabLayer::dense(784, 512, Some("relu"), Some("dense1"));
         let x = input.apply(dense1);
-        
-        let dense2 = NabLayer::dense(128, 64, Some("relu"), Some("dense2"));
+
+        // Dense layer with 256 units and ReLU activation
+        let dense2 = NabLayer::dense(512, 256, Some("relu"), Some("dense2"));
         let x = x.apply(dense2);
-        
-        let output_layer = NabLayer::dense(64, 10, Some("softmax"), Some("output"));
+
+        // Output layer with 10 units (one per digit) and softmax activation
+        let output_layer = NabLayer::dense(256, 10, Some("softmax"), Some("output"));
         let output = x.apply(output_layer);
 
-        // Create model with proper layer ordering
+        // Step 4: Create and compile model
+        println!("Compiling model...");
         let mut model = NabModel::new_functional(vec![input], vec![output]);
-        
-        // Debug layer setup
-        model.print_layers();
-        
         model.compile(
-            "sgd",                      // optimizer type
-            0.01,                       // learning rate
-            "categorical_crossentropy", // loss type
+            "sgd",                      
+            0.1,                        // Increase learning rate from 0.01 to 0.1
+            "categorical_crossentropy", 
             vec!["accuracy".to_string()]
         );
 
-        // Generate dummy data for testing
-        let x_train = NDArray::rand_2d(100, 784);
-        let y_train = NDArray::rand_2d(100, 10);
-        let x_test = NDArray::rand_2d(20, 784);
-        let y_test = NDArray::rand_2d(20, 10);
-
-        // Train model
+        // Step 5: Train model
+        println!("Training model...");
         let history = model.fit(
             &x_train,
             &y_train,
-            32,
-            5,
+            64,             // Increase batch size from 32 to 64
+            5,             // Increase epochs from 2 to 10
             Some((&x_test, &y_test))
         );
 
-        // Verify history contains expected metrics
+        // Step 6: Evaluate final model
+        println!("Evaluating model...");
+        let eval_metrics = model.evaluate(&x_test, &y_test, 32);
+        
+        // Print final results
+        println!("Final test accuracy: {:.2}%", eval_metrics["accuracy"] * 100.0);
+        
+        // Verify model achieved reasonable accuracy (>85%)
+        assert!(eval_metrics["accuracy"] > 0.85, 
+            "Model accuracy ({:.2}%) below expected threshold", 
+            eval_metrics["accuracy"] * 100.0
+        );
+
+        // Verify training history contains expected metrics
         assert!(history.contains_key("loss"));
         assert!(history.contains_key("accuracy"));
         assert!(history.contains_key("val_loss"));

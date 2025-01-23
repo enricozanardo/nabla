@@ -14,9 +14,9 @@ pub struct NabLayer {
     /// Output shape of the layer
     output_shape: Vec<usize>,
     /// Layer weights (if any)
-    weights: Option<NDArray>,
+    pub weights: Option<NDArray>,
     /// Layer biases (if any)
-    biases: Option<NDArray>,
+    pub biases: Option<NDArray>,
     /// Stored input for backpropagation
     input_cache: Option<NDArray>,
     /// Stored output for backpropagation
@@ -24,9 +24,9 @@ pub struct NabLayer {
     /// Training mode flag
     trainable: bool,
     /// Weight gradients for optimization
-    weight_gradients: Option<NDArray>,
+    pub weight_gradients: Option<NDArray>,
     /// Bias gradients for optimization
-    bias_gradients: Option<NDArray>,
+    pub bias_gradients: Option<NDArray>,
     /// Type of activation function
     activation: Option<String>,
     /// Dropout rate (if applicable)
@@ -573,24 +573,27 @@ impl NabLayer {
         let output = self.output_cache.as_ref().unwrap();
         let weights = self.weights.as_ref().unwrap();
 
-        // 1. Compute activation gradient if present
+        // 1. Compute activation gradient
         let act_gradient = if let Some(act_type) = &self.activation {
             match act_type.as_str() {
                 "relu" => NablaActivation::relu_backward(gradient, output),
                 "sigmoid" => NablaActivation::sigmoid_backward(gradient, output),
                 "tanh" => NablaActivation::tanh_backward(gradient, output),
+                "softmax" => NablaActivation::softmax_backward(gradient, output),
                 _ => panic!("Unknown activation type: {}", act_type),
             }
         } else {
             gradient.clone()
         };
 
-        // 2. Compute weight and bias gradients
+        // 2. Compute gradients
         let input_t = input.transpose().expect("Failed to transpose input");
         let weights_t = weights.transpose().expect("Failed to transpose weights");
         
         self.weight_gradients = Some(input_t.dot(&act_gradient));
-        self.bias_gradients = Some(act_gradient.sum_axis(0));
+        // Fix: Reshape bias gradients to match bias shape
+        self.bias_gradients = Some(act_gradient.sum_axis(0).reshape(&[self.output_shape[0]])
+            .expect("Failed to reshape bias gradients"));
         
         // 3. Compute input gradient
         act_gradient.dot(&weights_t)
