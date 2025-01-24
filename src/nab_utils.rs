@@ -1,36 +1,68 @@
 use crate::nab_array::NDArray;
 use crate::nab_io::{save_nab, load_nab};
 
-
-impl NDArray {
+pub struct NabUtils;
+impl NabUtils {
 
 
     /// Normalizes the array values to range [0, 1] using min-max normalization
-    pub fn normalize(&mut self) {
-        let min_val = self.data().iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let max_val = self.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+    ///
+    /// # Arguments
+    ///
+    /// * `array` - The NDArray to normalize in-place
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use nabla_ml::nab_array::NDArray;
+    /// use nabla_ml::nab_utils::NabUtils;
+    /// 
+    /// let mut arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+    /// NabUtils::normalize(&mut arr);
+    /// assert_eq!(arr.data(), &[0.0, 0.25, 0.5, 0.75, 1.0]);
+    /// ```
+    pub fn normalize(array: &mut NDArray) {
+        let min_val = array.data().iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let max_val = array.data().iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
         
         // Avoid division by zero if all values are the same
         let range = max_val - min_val;
         if range != 0.0 {
-            self.data.iter_mut().for_each(|x| {
+            let mut data = array.data.clone();
+            for x in data.iter_mut() {
                 *x = (*x - min_val) / range;
-            });
+            }
+            array.data = data;
         }
     }
 
     /// Normalizes the array values using specified min and max values
-    pub fn normalize_with_range(&mut self, min_val: f64, max_val: f64) {
+    ///
+    /// # Arguments
+    ///
+    /// * `array` - The NDArray to normalize in-place
+    /// * `min_val` - The minimum value in the original range
+    /// * `max_val` - The maximum value in the original range
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use nabla_ml::nab_array::NDArray;
+    /// use nabla_ml::nab_utils::NabUtils;
+    /// 
+    /// let mut arr = NDArray::from_vec(vec![0.0, 51.0, 102.0, 153.0, 204.0, 255.0]);
+    /// NabUtils::normalize_with_range(&mut arr, 0.0, 255.0);
+    /// assert_eq!(arr.data(), &[0.0, 0.2, 0.4, 0.6, 0.8, 1.0]);
+    /// ```
+    pub fn normalize_with_range(array: &mut NDArray, min_val: f64, max_val: f64) {
         let range = max_val - min_val;
         if range != 0.0 {
-            self.data.iter_mut().for_each(|x| {
+            let mut data = array.data.clone();
+            for x in data.iter_mut() {
                 *x = (*x - min_val) / range;
-            });
+            }
+            array.data = data;
         }
-    }
-
-    pub fn data_mut(&mut self) -> &mut Vec<f64> {
-        &mut self.data
     }
 
     /// Loads a dataset from .nab files and splits it into training and testing sets
@@ -122,31 +154,31 @@ impl NDArray {
     /// # Returns
     ///
     /// A string representation of the array
-    pub fn display(&self) -> String {
-        match self.ndim() {
-            1 => self.format_1d(),
-            2 => self.format_2d(),
-            3 => self.format_3d(),
-            _ => format!("Array of shape {:?}", self.shape()),
+    pub fn display(&self, array: &NDArray) -> String {
+        match array.ndim() {
+            1 => self.format_1d(array),
+            2 => self.format_2d(array),
+            3 => self.format_3d(array),
+            _ => format!("Array of shape {:?}", array.shape()),
         }
     }
 
-    fn format_1d(&self) -> String {
-        format!("[{}]", self.data().iter()
+    fn format_1d(&self, array: &NDArray) -> String {
+        format!("[{}]", array.data().iter()
             .map(|x| format!("{:3.0}", x))
             .collect::<Vec<_>>()
             .join(" "))
     }
 
-    fn format_2d(&self) -> String {
-        let rows = self.shape()[0];
-        let cols = self.shape()[1];
+    fn format_2d(&self, array: &NDArray) -> String {
+        let rows = array.shape()[0];
+        let cols = array.shape()[1];
         
         let mut result = String::from("[\n");
         for i in 0..rows {
             result.push_str(" [");
             for j in 0..cols {
-                let value = self.get_2d(i, j);
+                let value = array.get_2d(i, j);
                 result.push_str(&format!("{:3.0}", value));
                 if j < cols - 1 {
                     result.push_str(" ");
@@ -161,19 +193,35 @@ impl NDArray {
         result
     }
 
-    fn format_3d(&self) -> String {
-        let depth = self.shape()[0];
+    fn format_3d(&self, array: &NDArray) -> String {
+        let depth = array.shape()[0];
         let mut result = String::new();
         
         for d in 0..depth {
-            let slice = self.sub_matrix(d, d+1, 0, self.shape()[2]);
+            let slice = array.sub_matrix(d, d+1, 0, array.shape()[2]);
             if d > 0 {
                 result.push_str("\n\n");
             }
-            result.push_str(&format!("Layer {}:\n{}", d, slice.format_2d()));
+            result.push_str(&format!("Layer {}:\n{}", d, self.format_2d(&slice)));
         }
         result
     }
+
+    // /// Convert class indices to one-hot encoded vectors
+    // pub fn to_one_hot(labels: &NDArray, num_classes: usize) -> Result<NDArray, String> {
+    //     let num_samples = labels.shape()[0];
+    //     let mut one_hot = NDArray::zeros(vec![num_samples, num_classes]);
+        
+    //     for (i, &label) in labels.data().iter().enumerate() {
+    //         let label_idx = label as usize;
+    //         if label_idx >= num_classes {
+    //             return Err(format!("Label {} exceeds number of classes {}", label_idx, num_classes));
+    //         }
+    //         one_hot.set(vec![i, label_idx], 1.0);
+    //     }
+        
+    //     Ok(one_hot)
+    // }
 
 }
 
@@ -211,5 +259,25 @@ mod tests {
         // Clean up test file
         std::fs::remove_file("test_multiple.nab")?;
         Ok(())
+    }
+
+    #[test]
+    fn test_normalize() {
+        let mut arr = NDArray::from_vec(vec![1.0, 2.0, 3.0, 4.0, 5.0]);
+        NabUtils::normalize(&mut arr);
+        assert_eq!(arr.data(), &[0.0, 0.25, 0.5, 0.75, 1.0]);
+    }
+
+    #[test]
+    fn test_normalize_with_range() {
+        // Test normalization with range [0, 255] to [0, 1]
+        let mut arr = NDArray::from_vec(vec![0.0, 51.0, 102.0, 153.0, 204.0, 255.0]);
+        NabUtils::normalize_with_range(&mut arr, 0.0, 255.0);
+        
+        // Check if values are normalized correctly
+        let expected = vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
+        for (actual, expected) in arr.data().iter().zip(expected.iter()) {
+            assert!((actual - expected).abs() < 1e-10);
+        }
     }
 }

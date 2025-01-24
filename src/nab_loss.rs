@@ -5,22 +5,24 @@ pub trait Loss {
     fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray;
 }
 
-pub struct CategoricalCrossentropy;
+// pub struct CategoricalCrossentropy;
 
-impl Loss for CategoricalCrossentropy {
-    fn forward(&self, y_pred: &NDArray, y_true: &NDArray) -> f64 {
-        // Compute cross-entropy loss
-        let epsilon = 1e-8;
-        let clipped_pred = y_pred.clip(epsilon, 1.0 - epsilon);
-        -y_true.multiply(&clipped_pred.log()).sum() / y_true.shape()[0] as f64
-    }
+// impl Loss for CategoricalCrossentropy {
+//     fn forward(&self, y_pred: &NDArray, y_true: &NDArray) -> f64 {
+//         // Compute cross-entropy loss
+//         let epsilon = 1e-8;
+//         let clipped_pred = y_pred.clip(epsilon, 1.0 - epsilon);
+//         -y_true.multiply(&clipped_pred.log()).sum() / y_true.shape()[0] as f64
+//     }
 
-    fn backward(&self, y_pred: &NDArray, y_true: &NDArray) -> NDArray {
-        NDArray::crossentropy_nabla(y_pred, y_true)
-    }
-}
+//     fn backward(&self, y_pred: &NDArray, y_true: &NDArray) -> NDArray {
+//         NDArray::crossentropy_nabla(y_pred, y_true)
+//     }
+// }
 
-impl NDArray {
+pub struct NabLoss;
+
+impl NabLoss {
     /// Calculates the Mean Squared Error (MSE) between two arrays
     ///
     /// # Arguments
@@ -59,6 +61,17 @@ impl NDArray {
 
 }
 
+impl Loss for NabLoss {
+    fn forward(&self, predictions: &NDArray, targets: &NDArray) -> f64 {
+        NabLoss::mean_squared_error(predictions, targets)
+    }
+
+    fn backward(&self, predictions: &NDArray, targets: &NDArray) -> NDArray {
+        // Default to MSE gradient
+        predictions.subtract(targets).multiply_scalar(2.0 / predictions.shape()[0] as f64)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,7 +80,7 @@ mod tests {
     pub fn test_mean_squared_error() {
         let y_true = NDArray::from_vec(vec![1.0, 0.0, 1.0, 1.0]);
         let y_pred = NDArray::from_vec(vec![0.9, 0.2, 0.8, 0.6]);
-        let mse = NDArray::mean_squared_error(&y_true, &y_pred);
+        let mse = NabLoss::mean_squared_error(&y_true, &y_pred);
         assert!((mse - 0.0625).abs() < 1e-4);
     }
 
@@ -83,7 +96,7 @@ mod tests {
             vec![0.1, 0.8, 0.1],
             vec![0.05, 0.15, 0.8],
         ]);
-        let cross_entropy = NDArray::cross_entropy_loss(&y_true, &y_pred);
+        let cross_entropy = NabLoss::cross_entropy_loss(&y_true, &y_pred);
         assert!((cross_entropy - 0.267654016).abs() < 1e-4);
     }
 } 
