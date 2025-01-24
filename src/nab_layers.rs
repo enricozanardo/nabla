@@ -52,6 +52,7 @@ pub struct NabLayer {
     input_nodes: Option<Vec<usize>>,
 }
 
+#[allow(dead_code)]
 impl NabLayer {
     /// Creates a new Input layer
     /// 
