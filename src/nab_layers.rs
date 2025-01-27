@@ -739,6 +739,11 @@ impl NabLayer {
         // Store input connections in layer
         self.input_nodes = Some(inputs);
     }
+
+    /// Returns the layer type as a string
+    pub fn get_type(&self) -> &str {
+        &self.layer_type
+    }
 }
 
 #[cfg(test)]

@@ -275,28 +275,23 @@ impl NabModel {
             layers.push(layer);
         }
         
-        // Second pass: Build layer graph
+        // Second pass: Build layer graph from outputs back to inputs
         for output in outputs {
-            let mut current = output;
+            let mut current = Some(output);
             let mut layer_stack = vec![];
             
             // Collect all layers from output to input
-            while !node_to_layer.contains_key(&current.layer.node_index.unwrap()) {
+            while let Some(curr) = current {
                 println!("Processing layer: {} (id: {})", 
-                    current.layer.get_name(),
-                    current.layer.node_index.unwrap()
+                    curr.layer.get_name(),
+                    curr.layer.node_index.unwrap()
                 );
                 
-                layer_stack.push(current.layer.clone());
-                
-                if let Some(prev) = current.previous_output {
-                    current = *prev;
-                } else {
-                    break;
-                }
+                layer_stack.push(curr.layer.clone());
+                current = curr.previous_output.map(|prev| *prev);
             }
             
-            // Add layers in correct order
+            // Add layers in reverse order (input to output)
             for layer in layer_stack.into_iter().rev() {
                 println!("Adding layer: {} -> {:?}", layer.get_name(), layer.get_output_shape());
                 layers.push(layer);
@@ -483,6 +478,119 @@ impl NabModel {
             println!("{}: {} -> {:?}", i, layer.get_name(), layer.get_output_shape());
         }
     }
+
+    /// Prints a summary of the model's layers and parameters
+    /// 
+    /// Displays a formatted table showing:
+    /// - Layer name and type
+    /// - Output shape
+    /// - Number of parameters
+    /// 
+    /// Also shows total parameters, trainable parameters, and non-trainable parameters
+    /// 
+    /// # Example
+    /// ```ignore
+    /// use nabla_ml::nab_model::NabModel;
+    /// use nabla_ml::nab_layers::NabLayer;
+    /// 
+    /// let input = NabModel::input(vec![784]);
+    /// let dense = NabLayer::dense(784, 128, Some("relu"), Some("dense1"));
+    /// let output = input.apply(dense);
+    /// let mut model = NabModel::new_functional(vec![input], vec![output]);
+    /// 
+    /// model.summary();
+    /// // Model: "sequential"
+    /// // ─────────────────────────────────────────────────────
+    /// // Layer (type)          Output Shape         Param #   
+    /// // =================================================
+    /// // input                 (None, 784)          0         
+    /// // dense1 (Dense)        (None, 128)          100,480   
+    /// // =================================================
+    /// // Total params: 100,480
+    /// // Trainable params: 100,480
+    /// // Non-trainable params: 0
+    /// ```
+    pub fn summary(&self) {
+        println!("Model: \"sequential\"");
+        println!("─────────────────────────────────────────────────────");
+        println!("{:<20} {:<18} {:<10}", "Layer (type)", "Output Shape", "Param #");
+        println!("=================================================");
+
+        let mut total_params = 0;
+        let mut trainable_params = 0;
+        let mut non_trainable_params = 0;
+
+        // Print each layer's info
+        for layer in &self.layers {
+            let (params, trainable) = self.count_params(layer);
+            total_params += params;
+            if trainable {
+                trainable_params += params;
+            } else {
+                non_trainable_params += params;
+            }
+
+            let shape_str = format!("(None, {})", 
+                layer.get_output_shape()
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+
+            let layer_type = if layer.get_name().contains("input") {
+                layer.get_name().to_string()
+            } else {
+                format!("{} ({})", 
+                    layer.get_name(),
+                    layer.get_type()
+                )
+            };
+
+            println!("{:<20} {:<18} {:<10}", 
+                layer_type,
+                shape_str,
+                self.format_number(params)
+            );
+        }
+
+        println!("=================================================");
+        println!("Total params: {}", self.format_number(total_params));
+        println!("Trainable params: {}", self.format_number(trainable_params));
+        println!("Non-trainable params: {}", self.format_number(non_trainable_params));
+    }
+
+    /// Counts parameters for a given layer
+    fn count_params(&self, layer: &NabLayer) -> (usize, bool) {
+        let mut params = 0;
+        
+        // Count weights
+        if let Some(weights) = &layer.weights {
+            params += weights.data().len();
+        }
+        
+        // Count biases
+        if let Some(biases) = &layer.biases {
+            params += biases.data().len();
+        }
+
+        (params, layer.is_trainable())
+    }
+
+    /// Formats large numbers with commas
+    fn format_number(&self, n: usize) -> String {
+        n.to_string()
+            .chars()
+            .rev()
+            .collect::<Vec<_>>()
+            .chunks(3)
+            .map(|chunk| chunk.iter().collect::<String>())
+            .collect::<Vec<_>>()
+            .join(",")
+            .chars()
+            .rev()
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -635,6 +743,31 @@ mod tests {
     //     assert!(history.contains_key("accuracy"));
     //     assert!(history.contains_key("val_loss"));
     //     assert!(history.contains_key("val_accuracy"));
+    }
+
+    #[test]
+    fn test_model_summary() {
+        // Create a simple model
+        let input = NabModel::input(vec![784]);
+        let dense1 = NabLayer::dense(784, 512, Some("relu"), Some("dense1"));
+        let x = input.apply(dense1);
+        let dense2 = NabLayer::dense(512, 10, Some("softmax"), Some("output"));
+        let output = x.apply(dense2);
+
+        let model = NabModel::new_functional(vec![input], vec![output]);
+
+        // Capture stdout to verify summary output
+        let output = std::io::stdout();
+        let handle = output.lock();
+        
+        model.summary();
+
+        // Verify parameter counts
+        let total_params: usize = model.layers.iter()
+            .map(|l| model.count_params(l).0)
+            .sum();
+        
+        assert_eq!(total_params, 784*512 + 512 + 512*10 + 10); // weights + biases
     }
 }
 
