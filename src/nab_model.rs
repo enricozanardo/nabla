@@ -3,6 +3,13 @@ use crate::nab_layers::NabLayer;
 use crate::nab_optimizers::NablaOptimizer;
 use crate::nab_loss::NabLoss;
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
+use std::path::Path;
+use serde_json;
+use flate2::write::GzEncoder;
+use flate2::read::GzDecoder;
+use flate2::Compression;
+use std::io::{Write, Read};
 
 
 /// Represents a node in the computation graph
@@ -265,51 +272,41 @@ impl NabModel {
     /// Creates a new model from input and output nodes
     pub fn new_functional(inputs: Vec<Input>, outputs: Vec<Output>) -> Self {
         let mut layers = Vec::new();
-        let mut node_to_layer = HashMap::new();
+        let mut visited = std::collections::HashSet::new();
         
-        // First pass: Add input layers
+        // First add input layers
         for input in inputs {
             let mut layer = NabLayer::input(input.shape.clone(), None);
             layer.set_node_index(input.node_index.unwrap());
-            node_to_layer.insert(input.node_index.unwrap(), layers.len());
+            visited.insert(input.node_index.unwrap());
             layers.push(layer);
         }
         
-        // Second pass: Build layer graph from outputs back to inputs
+        // Then add remaining layers in topological order
         for output in outputs {
+            let mut stack = vec![];
             let mut current = Some(output);
-            let mut layer_stack = vec![];
             
-            // Collect all layers from output to input
+            // Build stack from output to input
             while let Some(curr) = current {
-                println!("Processing layer: {} (id: {})", 
-                    curr.layer.get_name(),
-                    curr.layer.node_index.unwrap()
-                );
-                
-                layer_stack.push(curr.layer.clone());
-                current = curr.previous_output.map(|prev| *prev);
+                if !visited.contains(&curr.layer.node_index.unwrap()) {
+                    stack.push(curr.layer.clone());
+                    visited.insert(curr.layer.node_index.unwrap());
+                }
+                current = curr.previous_output.map(|prev| prev.as_ref().clone());  // Clone instead of dereferencing
             }
             
-            // Add layers in reverse order (input to output)
-            for layer in layer_stack.into_iter().rev() {
-                println!("Adding layer: {} -> {:?}", layer.get_name(), layer.get_output_shape());
-                layers.push(layer);
-            }
+            // Add layers in correct order
+            layers.extend(stack.into_iter().rev());
         }
 
-        // Print model summary
-        println!("\nModel Summary:");
-        for (i, layer) in layers.iter().enumerate() {
-            println!("Layer {}: {} (id: {}) -> {:?}", 
-                i,
-                layer.get_name(),
-                layer.node_index.unwrap(),
-                layer.get_output_shape()
-            );
+        NabModel {
+            layers,
+            optimizer_type: String::new(),
+            learning_rate: 0.0,
+            loss_type: String::new(),
+            metrics: Vec::new(),
         }
-
-        NabModel { layers, optimizer_type: String::new(), learning_rate: 0.0, loss_type: String::new(), metrics: Vec::new() }
     }
 
     /// Trains the model on input data
@@ -591,6 +588,126 @@ impl NabModel {
             .rev()
             .collect()
     }
+
+    /// Saves the model to a compressed .ez file
+    /// 
+    /// # Arguments
+    /// * `path` - Path to save the model (e.g. "model.ez")
+    pub fn save_compressed<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+        // Create encoder with best compression
+        let file = std::fs::File::create(path)?;
+        let mut encoder = GzEncoder::new(file, Compression::best());
+        
+        // Prepare and serialize model data
+        let model_data = ModelData {
+            config: ModelConfig {
+                optimizer_type: self.optimizer_type.clone(),
+                learning_rate: self.learning_rate,
+                loss_type: self.loss_type.clone(),
+                metrics: self.metrics.clone(),
+            },
+            layers: self.layers.iter().map(|layer| LayerState {
+                layer_type: layer.get_type().to_string(),
+                name: layer.get_name().to_string(),
+                input_shape: layer.input_shape.clone(),
+                output_shape: layer.output_shape.clone(),
+                weights: layer.weights.as_ref().map(|w| w.data().to_vec()),
+                biases: layer.biases.as_ref().map(|b| b.data().to_vec()),
+                activation: layer.activation.clone(),
+            }).collect(),
+        };
+
+        // Write serialized data
+        let serialized = serde_json::to_string(&model_data)?;
+        encoder.write_all(serialized.as_bytes())?;
+        encoder.finish()?;
+
+        Ok(())
+    }
+
+    /// Loads a model from a compressed .ez file
+    /// 
+    /// # Arguments
+    /// * `path` - Path to the model file (e.g. "model.ez")
+    pub fn load_compressed<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+        // Create decoder
+        let file = std::fs::File::open(path)?;
+        let mut decoder = GzDecoder::new(file);
+        
+        // Read and decompress
+        let mut contents = String::new();
+        decoder.read_to_string(&mut contents)?;
+        
+        // Deserialize
+        let model_data: ModelData = serde_json::from_str(&contents)?;
+        
+        // Reconstruct model
+        let mut layers = Vec::new();
+        for state in model_data.layers {
+            let mut layer = match state.layer_type.as_str() {
+                "Input" => NabLayer::input(state.input_shape.clone(), Some(&state.name)),
+                "Dense" => NabLayer::dense(
+                    state.input_shape[0],
+                    state.output_shape[0],
+                    state.activation.as_deref(),
+                    Some(&state.name)
+                ),
+                _ => return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unknown layer type: {}", state.layer_type)
+                )),
+            };
+
+            // Restore weights and biases
+            if let Some(weights) = state.weights {
+                let weight_shape = match state.layer_type.as_str() {
+                    "Dense" => vec![state.input_shape[0], state.output_shape[0]],
+                    _ => state.input_shape.clone()
+                };
+                layer.weights = Some(NDArray::new(weights, weight_shape));
+            }
+            if let Some(biases) = state.biases {
+                layer.biases = Some(NDArray::new(biases, vec![state.output_shape[0]]));
+            }
+
+            layers.push(layer);
+        }
+
+        Ok(NabModel {
+            layers,
+            optimizer_type: model_data.config.optimizer_type,
+            learning_rate: model_data.config.learning_rate,
+            loss_type: model_data.config.loss_type,
+            metrics: model_data.config.metrics,
+        })
+    }
+}
+
+/// Serializable model configuration
+#[derive(Serialize, Deserialize)]
+struct ModelConfig {
+    optimizer_type: String,
+    learning_rate: f64,
+    loss_type: String,
+    metrics: Vec<String>,
+}
+
+/// Serializable layer state
+#[derive(Serialize, Deserialize)]
+struct LayerState {
+    layer_type: String,
+    name: String,
+    input_shape: Vec<usize>,
+    output_shape: Vec<usize>,
+    weights: Option<Vec<f64>>,
+    biases: Option<Vec<f64>>,
+    activation: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ModelData {
+    config: ModelConfig,
+    layers: Vec<LayerState>,
 }
 
 #[cfg(test)]
@@ -768,6 +885,53 @@ mod tests {
             .sum();
         
         assert_eq!(total_params, 784*512 + 512 + 512*10 + 10); // weights + biases
+    }
+
+    #[test]
+    fn test_model_save_load() {
+        // Create a simple model
+        let input = NabModel::input(vec![784]);
+        let dense = NabLayer::dense(784, 10, Some("relu"), Some("dense1"));
+        let output = input.apply(dense);
+        let mut model = NabModel::new_functional(vec![input], vec![output]);
+        model.compile("sgd", 0.1, "categorical_crossentropy", vec!["accuracy".to_string()]);
+
+
+        // Save the model
+        model.save_compressed("test_model.ez").expect("Failed to save model");
+
+        // Load the model
+        let loaded_model = NabModel::load_compressed("test_model.ez").expect("Failed to load model");
+
+        // Verify model configuration
+        assert_eq!(loaded_model.optimizer_type, model.optimizer_type);
+        assert_eq!(loaded_model.learning_rate, model.learning_rate);
+        assert_eq!(loaded_model.loss_type, model.loss_type);
+        assert_eq!(loaded_model.metrics, model.metrics);
+
+        // Verify layers
+        assert_eq!(loaded_model.layers.len(), model.layers.len());
+        for (loaded, original) in loaded_model.layers.iter().zip(model.layers.iter()) {
+            assert_eq!(loaded.get_type(), original.get_type());
+            assert_eq!(loaded.get_output_shape(), original.get_output_shape());
+            
+            if let (Some(w1), Some(w2)) = (&loaded.weights, &original.weights) {
+                assert_eq!(w1.shape(), w2.shape(), "Weight shapes don't match");
+                assert!(w1.data().iter().zip(w2.data().iter())
+                    .all(|(a, b)| (a - b).abs() < 1e-6), 
+                    "Weight values don't match");
+            }
+
+            if let (Some(b1), Some(b2)) = (&loaded.biases, &original.biases) {
+                assert_eq!(b1.shape(), b2.shape(), "Bias shapes don't match");
+                assert!(b1.data().iter().zip(b2.data().iter())
+                    .all(|(a, b)| (a - b).abs() < 1e-6),
+                    "Bias values don't match");
+            }
+        }
+
+        // Clean up test file
+        std::fs::remove_file("test_model.ez").expect("Failed to clean up test file");
     }
 }
 

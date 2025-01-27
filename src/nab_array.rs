@@ -140,7 +140,7 @@ impl NDArray {
     /// A new NDArray with the specified shape.
     pub fn reshape(&self, new_shape: &[usize]) -> Result<Self, &'static str> {
         let total_elements = self.data.len();
-        let new_total = new_shape.iter().product();
+        let new_total: usize = new_shape.iter().copied().product();
         
         if total_elements != new_total {
             return Err("New shape must have same total size as original");

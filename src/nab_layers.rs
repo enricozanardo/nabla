@@ -6,50 +6,50 @@ use crate::nab_activations::NablaActivation;
 #[derive(Clone)]
 pub struct NabLayer {
     /// Layer type identifier
-    layer_type: String,
+    pub layer_type: String,
     /// Layer name (unique identifier)
-    name: String,
+    pub name: String,
     /// Input shape of the layer
-    input_shape: Vec<usize>,
+    pub input_shape: Vec<usize>,
     /// Output shape of the layer
-    output_shape: Vec<usize>,
+    pub output_shape: Vec<usize>,
     /// Layer weights (if any)
     pub weights: Option<NDArray>,
     /// Layer biases (if any)
     pub biases: Option<NDArray>,
     /// Stored input for backpropagation
-    input_cache: Option<NDArray>,
+    pub input_cache: Option<NDArray>,
     /// Stored output for backpropagation
-    output_cache: Option<NDArray>,
+    pub output_cache: Option<NDArray>,
     /// Training mode flag
-    trainable: bool,
+    pub trainable: bool,
     /// Weight gradients for optimization
     pub weight_gradients: Option<NDArray>,
     /// Bias gradients for optimization
     pub bias_gradients: Option<NDArray>,
     /// Type of activation function
-    activation: Option<String>,
+    pub activation: Option<String>,
     /// Dropout rate (if applicable)
-    dropout_rate: Option<f64>,
+    pub dropout_rate: Option<f64>,
     /// Dropout mask for backpropagation
-    dropout_mask: Option<NDArray>,
+    pub dropout_mask: Option<NDArray>,
     /// Epsilon for numerical stability in BatchNorm
-    epsilon: Option<f64>,
+    pub epsilon: Option<f64>,
     /// Momentum for running statistics in BatchNorm
-    momentum: Option<f64>,
+    pub momentum: Option<f64>,
     /// Running mean for BatchNorm inference
-    running_mean: Option<NDArray>,
+    pub running_mean: Option<NDArray>,
     /// Running variance for BatchNorm inference
-    running_var: Option<NDArray>,
+    pub running_var: Option<NDArray>,
     /// Current batch mean (for backprop)
-    batch_mean: Option<NDArray>,
+    pub batch_mean: Option<NDArray>,
     /// Current batch variance (for backprop)
-    batch_var: Option<NDArray>,
+    pub batch_var: Option<NDArray>,
     /// Normalized values before scaling (for backprop)
-    normalized: Option<NDArray>,
+    pub normalized: Option<NDArray>,
     pub node_index: Option<usize>,
     /// Input connections for the layer
-    input_nodes: Option<Vec<usize>>,
+    pub input_nodes: Option<Vec<usize>>,
 }
 
 #[allow(dead_code)]
