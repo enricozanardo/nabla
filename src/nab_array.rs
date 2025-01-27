@@ -721,9 +721,9 @@ impl NDArray {
     /// A new NDArray containing the specified slice.
     #[allow(dead_code)]
     pub fn slice(&self, start: usize, end: usize) -> Self {
-        println!("Slicing array:");
-        println!("  Original shape: {:?}", self.shape);
-        println!("  Start: {}, End: {}", start, end);
+        // println!("Slicing array:");
+        // println!("  Original shape: {:?}", self.shape);
+        // println!("  Start: {}, End: {}", start, end);
 
         let mut new_shape = self.shape.clone();
         new_shape[0] = end - start;
@@ -732,14 +732,14 @@ impl NDArray {
             let cols = self.shape[1];
             let start_idx = start * cols;
             let end_idx = end * cols;
-            println!("  2D array: keeping columns, new shape will be: {:?}", new_shape);
+            // println!("  2D array: keeping columns, new shape will be: {:?}", new_shape);
             
             let sliced_data = self.data[start_idx..end_idx].to_vec();
-            println!("  Sliced data length: {}", sliced_data.len());
+            // println!("  Sliced data length: {}", sliced_data.len());
             
             NDArray::new(sliced_data, new_shape)
         } else {
-            println!("  1D array: simple slice");
+            // println!("  1D array: simple slice");
             NDArray::new(self.data[start..end].to_vec(), new_shape)
         }
     }
@@ -1106,16 +1106,16 @@ impl NDArray {
 
 
     pub fn add(self, other: &NDArray) -> Self {
-        println!("Adding arrays:");
-        println!("  Left shape: {:?}", self.shape);
-        println!("  Right shape: {:?}", other.shape);
+        // println!("Adding arrays:");
+        // println!("  Left shape: {:?}", self.shape);
+        // println!("  Right shape: {:?}", other.shape);
 
         // Handle broadcasting for shapes like [N, M] + [1, M]
         if self.shape.len() == other.shape.len() && 
            other.shape[0] == 1 && 
            self.shape[1] == other.shape[1] {
             
-            println!("  Performing broadcasting addition");
+            // println!("  Performing broadcasting addition");
             let mut result_data = Vec::with_capacity(self.data.len());
             let cols = other.shape[1];
             
@@ -1127,7 +1127,7 @@ impl NDArray {
             }
             
             let result = NDArray::new(result_data, self.shape.clone());
-            println!("  Result shape: {:?}", result.shape);
+            // println!("  Result shape: {:?}", result.shape);
             return result;
         }
         
@@ -1541,16 +1541,16 @@ impl Add<&NDArray> for NDArray {
     type Output = Self;
 
     fn add(self, other: &NDArray) -> Self::Output {
-        println!("Adding arrays:");
-        println!("  Left shape: {:?}", self.shape);
-        println!("  Right shape: {:?}", other.shape);
+        // println!("Adding arrays:");
+        // println!("  Left shape: {:?}", self.shape);
+        // println!("  Right shape: {:?}", other.shape);
 
         // Handle broadcasting for shapes like [N, M] + [1, M]
         if self.shape.len() == other.shape.len() && 
            other.shape[0] == 1 && 
            self.shape[1] == other.shape[1] {
             
-            println!("  Performing broadcasting addition");
+            // println!("  Performing broadcasting addition");
             let mut result_data = Vec::with_capacity(self.data.len());
             let cols = other.shape[1];
             
@@ -1562,7 +1562,7 @@ impl Add<&NDArray> for NDArray {
             }
             
             let result = NDArray::new(result_data, self.shape.clone());
-            println!("  Result shape: {:?}", result.shape);
+            // println!("  Result shape: {:?}", result.shape);
             return result;
         }
         
