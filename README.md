@@ -61,11 +61,11 @@ use nabla_ml::nab_layers::NabLayer;
 
 // Create model architecture
 let input = NabModel::input(vec![784]);  // For MNIST: 28x28 = 784 input features
-let dense1 = NabLayer::dense(784, 512, Some("relu"), Some("dense1"));
+let dense1 = NabLayer::dense(784, 32, Some("relu"), Some("dense1"));
 let x = input.apply(dense1);
-let dense2 = NabLayer::dense(512, 256, Some("relu"), Some("dense2"));
+let dense2 = NabLayer::dense(32, 32, Some("relu"), Some("dense2"));
 let x = x.apply(dense2);
-let output_layer = NabLayer::dense(256, 10, Some("softmax"), Some("output"));
+let output_layer = NabLayer::dense(32, 10, Some("softmax"), Some("output"));
 let output = x.apply(output_layer);
 
 // Create and compile model
@@ -82,12 +82,16 @@ let history = model.fit(
     &training_data, 
     &training_labels, 
     64,  // Batch size
-    5,   // Number of epochs
+    10,   // Number of epochs
     Some((&validation_data, &validation_labels)) // Optional validation data
 );
 
 model.summary();
 ```
+![MNIST - 42](./docs/42.png)
+![MNIST - Loss](./docs/mnist_loss.png)
+![MNIST - Accuracy](./docs/mnist_accuracy.png)
+
 
 ### Usage
 
@@ -399,7 +403,7 @@ Mnist dataset in .nab format can be found [here](https://github.com/enricozanard
 ![Sigmoid](./docs/sigmoid.png)
 ![Loss History](./docs/loss_history.png)
 ![Linear Regression](./docs/regression_plot.png)
-![MNIST - 42](./docs/42.png)
+
 
 ## License
 
