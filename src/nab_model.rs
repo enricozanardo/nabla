@@ -11,6 +11,7 @@ use flate2::read::GzDecoder;
 use flate2::Compression;
 use std::io::{Write, Read};
 
+static mut NEXT_NODE_ID: usize = 0;
 
 /// Represents a node in the computation graph
 pub struct Node {
@@ -76,15 +77,12 @@ impl Input {
         let mut layer = layer.into();
         let output_shape = layer.compute_output_shape(&self.shape);
         
-        // Generate new node index for this layer
-        static mut NEXT_LAYER_ID: usize = 1; // 0 is reserved for input
+        // Get next ID safely
         let layer_id = unsafe {
-            let id = NEXT_LAYER_ID;
-            NEXT_LAYER_ID += 1;
-            id
+            NEXT_NODE_ID += 1;
+            NEXT_NODE_ID
         };
         
-        // Set layer's node index and inputs
         layer.set_node_index(layer_id);
         
         println!("Connecting layer {} (id: {}) to input (id: {})", 
@@ -117,27 +115,24 @@ impl Output {
         let mut layer = layer.into();
         let output_shape = layer.compute_output_shape(&self.output_shape);
         
-        // Generate new node index for this layer
-        static mut NEXT_LAYER_ID: usize = 1; // 0 is reserved for input
+        // Get next ID safely
         let layer_id = unsafe {
-            let id = NEXT_LAYER_ID;
-            NEXT_LAYER_ID += 1;
-            id
+            NEXT_NODE_ID += 1;
+            NEXT_NODE_ID
         };
         
-        // Set layer's node index and inputs
         layer.set_node_index(layer_id);
         
         println!("Connecting layer {} (id: {}) to {} (id: {})", 
             layer.get_name(), 
             layer_id,
-            self.layer.get_name(), 
-            self.layer.node_index.expect("Layer node index not set")
+            self.layer.get_name(),
+            self.layer.node_index.unwrap()
         );
         
         Output {
             layer,
-            inputs: vec![layer_id],
+            inputs: vec![self.layer.node_index.unwrap()],
             output_shape,
             previous_output: Some(Box::new(self.clone())),
         }
@@ -162,11 +157,9 @@ impl NabModel {
     /// let input = NabModel::input(vec![784]); // For MNIST images
     /// ```
     pub fn input(shape: Vec<usize>) -> Input {
-        static mut NEXT_NODE_ID: usize = 0;
         let node_index = unsafe {
-            let id = NEXT_NODE_ID;
             NEXT_NODE_ID += 1;
-            id
+            NEXT_NODE_ID
         };
         
         Input {
@@ -291,22 +284,22 @@ impl NabModel {
             layers.push(layer);
         }
         
-        // Then add remaining layers in topological order
+        // Then add remaining layers by traversing backwards from each output
         for output in outputs {
-            let mut stack = vec![];
             let mut current = Some(output);
+            let mut layer_stack = Vec::new();
             
-            // Build stack from output to input
+            // Build stack of layers from output to input
             while let Some(curr) = current {
                 if !visited.contains(&curr.layer.node_index.unwrap()) {
-                    stack.push(curr.layer.clone());
                     visited.insert(curr.layer.node_index.unwrap());
+                    layer_stack.push(curr.layer);
                 }
-                current = curr.previous_output.map(|prev| prev.as_ref().clone());  // Clone instead of dereferencing
+                current = curr.previous_output.map(|prev| *prev);
             }
             
-            // Add layers in correct order
-            layers.extend(stack.into_iter().rev());
+            // Add layers in reverse order (from input to output)
+            layers.extend(layer_stack.into_iter().rev());
         }
 
         NabModel {
@@ -517,7 +510,7 @@ impl NabModel {
     /// // Non-trainable params: 0
     /// ```
     pub fn summary(&self) {
-        println!("Model: \"sequential\"");
+        println!("Model: \"functional\"");
         println!("─────────────────────────────────────────────────────");
         println!("{:<20} {:<18} {:<10}", "Layer (type)", "Output Shape", "Param #");
         println!("=================================================");
@@ -719,6 +712,14 @@ struct ModelData {
     layers: Vec<LayerState>,
 }
 
+/// Resets the global node ID counter
+/// Used for testing to ensure consistent behavior
+pub fn reset_node_id() {
+    unsafe {
+        NEXT_NODE_ID = 0;
+    }
+}
+
 #[cfg(test)]
 #[allow(unused_imports)]
 #[allow(unused_variables)]
@@ -732,6 +733,9 @@ mod tests {
 
     #[test]
     fn test_linear_regression() {
+        // Reset node ID counter before test
+        reset_node_id();
+        
         // Create synthetic data for linear regression
         // y = 2x + 1 with some noise
         let x_data = NDArray::from_matrix(vec![
@@ -873,13 +877,20 @@ mod tests {
 
     #[test]
     fn test_model_summary() {
+        // Reset node ID counter before test
+        reset_node_id();
+        
         // Create a simple model
         let input = NabModel::input(vec![784]);
-        let dense1 = NabLayer::dense(784, 512, Some("relu"), Some("dense1"));
+        let dense1 = NabLayer::dense(784, 32, Some("relu"), Some("dense1"));
         let x = input.apply(dense1);
-        let dense2 = NabLayer::dense(512, 10, Some("softmax"), Some("output"));
-        let output = x.apply(dense2);
 
+        let dense2 = NabLayer::dense(32, 32, Some("relu"), Some("dense2"));
+        let x = x.apply(dense2);
+
+        let output_layer = NabLayer::dense(32, 10, Some("softmax"), Some("output"));
+        let output = x.apply(output_layer);
+        
         let model = NabModel::new_functional(vec![input], vec![output]);
 
         // Capture stdout to verify summary output
@@ -893,15 +904,25 @@ mod tests {
             .map(|l| model.count_params(l).0)
             .sum();
         
-        assert_eq!(total_params, 784*512 + 512 + 512*10 + 10); // weights + biases
+        assert_eq!(total_params, 784*32 + 32 + 32*32 + 32 + 32*10 + 10); // weights + biases
     }
 
     #[test]
     fn test_model_save_load() {
+        // Reset node ID counter before test
+        reset_node_id();
+        
         // Create a simple model
         let input = NabModel::input(vec![784]);
-        let dense = NabLayer::dense(784, 10, Some("relu"), Some("dense1"));
-        let output = input.apply(dense);
+        let dense1 = NabLayer::dense(784, 32, Some("relu"), Some("dense1"));
+        let x = input.apply(dense1);
+
+        let dense2 = NabLayer::dense(32, 32, Some("relu"), Some("dense2"));
+        let x = x.apply(dense2);
+
+        let output_layer = NabLayer::dense(32, 10, Some("softmax"), Some("output"));
+        let output = x.apply(output_layer);
+
         let mut model = NabModel::new_functional(vec![input], vec![output]);
         model.compile("sgd", 0.1, "categorical_crossentropy", vec!["accuracy".to_string()]);
 
@@ -945,6 +966,9 @@ mod tests {
 
     #[test]
     fn test_input_shape() {
+        // Reset node ID counter before test
+        reset_node_id();
+        
         let shape = vec![784, 32];
         let input = NabModel::input(shape.clone());
         
