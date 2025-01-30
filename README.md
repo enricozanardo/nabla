@@ -59,38 +59,69 @@ A user-friendly neural network library implemented in Rust, designed for simplic
 use nabla_ml::nab_model::NabModel;
 use nabla_ml::nab_layers::NabLayer;
 
-// Create model architecture
-let input = NabModel::input(vec![784]);  // For MNIST: 28x28 = 784 input features
+// Create a simple model
+let input = NabModel::input(vec![784]);
 let dense1 = NabLayer::dense(784, 32, Some("relu"), Some("dense1"));
 let x = input.apply(dense1);
+
 let dense2 = NabLayer::dense(32, 32, Some("relu"), Some("dense2"));
 let x = x.apply(dense2);
+
 let output_layer = NabLayer::dense(32, 10, Some("softmax"), Some("output"));
 let output = x.apply(output_layer);
 
-// Create and compile model
 let mut model = NabModel::new_functional(vec![input], vec![output]);
+
+model.summary();
+
 model.compile(
-    "sgd",
-    0.1,  // Adjusted learning rate
-    "categorical_crossentropy",
+    "sgd",                      
+    0.1,                        
+    "categorical_crossentropy", 
     vec!["accuracy".to_string()]
 );
 
-// Train the model
+
+// Step 5: Train model
+println!("Training model...");
 let history = model.fit(
-    &training_data, 
-    &training_labels, 
-    64,  // Batch size
-    10,   // Number of epochs
-    Some((&validation_data, &validation_labels)) // Optional validation data
+    &x_train,
+    &y_train,
+    32,             // Increase batch size from 32 to 64
+    10,             // Increase epochs from 2 to 10
+    Some((&x_test, &y_test))
 );
 
-model.summary();
+model.save_compressed("mnist_model.ez").unwrap();
+
+let mut model_loaded = NabModel::load_compressed("mnist_model.ez").unwrap();
+
+// Step 6: Evaluate final model
+println!("Evaluating model...");
+let eval_metrics = model_loaded.evaluate(&x_test, &y_test, 32);
+
+// Print final results
+println!("Final test accuracy: {:.2}%", eval_metrics["accuracy"] * 100.0);
+
+// Step 7: Verify model achieved reasonable accuracy (>85%)
+assert!(eval_metrics["accuracy"] > 0.85, 
+    "Model accuracy ({:.2}%) below expected threshold", 
+    eval_metrics["accuracy"] * 100.0
+);
+
+// Verify training history contains expected metrics
+assert!(history.contains_key("loss"));
+assert!(history.contains_key("accuracy"));
+assert!(history.contains_key("val_loss"));
+assert!(history.contains_key("val_accuracy"));
+
+// After training the model
+plot_training_history(&history)?;
 ```
 ![MNIST - 42](./docs/42.png)
 ![MNIST - Loss](./docs/mnist_loss.png)
 ![MNIST - Accuracy](./docs/mnist_accuracy.png)
+![MNIST - Training](./docs/mnist_training.png)
 
 
 ### Usage
