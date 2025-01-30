@@ -100,6 +100,15 @@ impl Input {
             previous_output: None,
         }
     }
+
+    /// Returns the input shape of this Input node
+    /// 
+    /// # Returns
+    /// 
+    /// A reference to the shape vector
+    pub fn get_input_shape(&self) -> &Vec<usize> {
+        &self.shape
+    }
 }
 
 impl Output {
@@ -932,6 +941,20 @@ mod tests {
 
         // Clean up test file
         std::fs::remove_file("test_model.ez").expect("Failed to clean up test file");
+    }
+
+    #[test]
+    fn test_input_shape() {
+        let shape = vec![784, 32];
+        let input = NabModel::input(shape.clone());
+        
+        // Test that get_input_shape returns the correct shape
+        assert_eq!(input.get_input_shape(), &shape);
+        
+        // Test that the shape is preserved when applying a layer
+        let dense = NabLayer::dense(784, 128, Some("relu"), Some("dense1"));
+        let output = input.apply(dense);
+        assert_eq!(input.get_input_shape(), &shape, "Input shape should remain unchanged after applying layer");
     }
 }
 
