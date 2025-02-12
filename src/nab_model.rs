@@ -792,87 +792,87 @@ mod tests {
     /// 5. Verifies accuracy exceeds 85%
     #[test]
     fn test_mnist_full_pipeline() {
-    //     // Step 1: Load MNIST data
-    //     println!("Loading MNIST data...");
-    //     let ((x_train, y_train), (x_test, y_test)) = NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0).unwrap();
+        // Step 1: Load MNIST data
+        println!("Loading MNIST data...");
+        let ((x_train, y_train), (x_test, y_test)) = NabUtils::load_and_split_dataset("datasets/mnist_test", 80.0).unwrap();
 
-    //     // Step 2: Normalize input data (scale pixels to 0-1)
-    //     println!("Normalizing data...");
-    //     let x_train = x_train.divide_scalar(255.0);
-    //     let x_test = x_test.divide_scalar(255.0);
+        // Step 2: Normalize input data (scale pixels to 0-1)
+        println!("Normalizing data...");
+        let x_train = x_train.divide_scalar(255.0);
+        let x_test = x_test.divide_scalar(255.0);
 
-    //     // Step 2.5: Reshape input data
-    //     let x_train = x_train.reshape(&[x_train.shape()[0], 784])
-    //         .expect("Failed to reshape training data");
-    //     let x_test = x_test.reshape(&[x_test.shape()[0], 784])
-    //         .expect("Failed to reshape test data");
+        // Step 2.5: Reshape input data
+        let x_train = x_train.reshape(&[x_train.shape()[0], 784])
+            .expect("Failed to reshape training data");
+        let x_test = x_test.reshape(&[x_test.shape()[0], 784])
+            .expect("Failed to reshape test data");
 
-    //     // Step 2.6: One-hot encode target data
-    //     println!("One-hot encoding targets...");
-    //     let y_train = NDArray::one_hot_encode(&y_train);
-    //     let y_test = NDArray::one_hot_encode(&y_test);
+        // Step 2.6: One-hot encode target data
+        println!("One-hot encoding targets...");
+        let y_train = NDArray::one_hot_encode(&y_train);
+        let y_test = NDArray::one_hot_encode(&y_test);
             
 
-    //     println!("Data shapes:");
-    //     println!("x_train: {:?}", x_train.shape());
-    //     println!("y_train: {:?}", y_train.shape());
-    //     println!("x_test: {:?}", x_test.shape());
-    //     println!("y_test: {:?}", y_test.shape());
+        println!("Data shapes:");
+        println!("x_train: {:?}", x_train.shape());
+        println!("y_train: {:?}", y_train.shape());
+        println!("x_test: {:?}", x_test.shape());
+        println!("y_test: {:?}", y_test.shape());
 
-    //     // Step 3: Create model architecture
-    //     println!("Creating model...");
-    //     let input = NabModel::input(vec![784]);  // 28x28 = 784 pixels
+        // Step 3: Create model architecture
+        println!("Creating model...");
+        let input = NabModel::input(vec![784]);  // 28x28 = 784 pixels
 
-    //     // Dense layer with 512 units and ReLU activation
-    //     let dense1 = NabLayer::dense(784, 512, Some("relu"), Some("dense1"));
-    //     let x = input.apply(dense1);
+        // Dense layer with 512 units and ReLU activation
+        let dense1 = NabLayer::dense(784, 32, Some("relu"), Some("dense1"));
+        let x = input.apply(dense1);
 
-    //     // Dense layer with 256 units and ReLU activation
-    //     let dense2 = NabLayer::dense(512, 256, Some("relu"), Some("dense2"));
-    //     let x = x.apply(dense2);
+        // Dense layer with 256 units and ReLU activation
+        let dense2 = NabLayer::dense(32, 32, Some("relu"), Some("dense2"));
+        let x = x.apply(dense2);
 
-    //     // Output layer with 10 units (one per digit) and softmax activation
-    //     let output_layer = NabLayer::dense(256, 10, Some("softmax"), Some("output"));
-    //     let output = x.apply(output_layer);
+        // Output layer with 10 units (one per digit) and softmax activation
+        let output_layer = NabLayer::dense(32, 10, Some("softmax"), Some("output"));
+        let output = x.apply(output_layer);
 
-    //     // Step 4: Create and compile model
-    //     println!("Compiling model...");
-    //     let mut model = NabModel::new_functional(vec![input], vec![output]);
-    //     model.compile(
-    //         "sgd",                      
-    //         0.1,                        // Increase learning rate from 0.01 to 0.1
-    //         "categorical_crossentropy", 
-    //         vec!["accuracy".to_string()]
-    //     );
+        // Step 4: Create and compile model
+        println!("Compiling model...");
+        let mut model = NabModel::new_functional(vec![input], vec![output]);
+        model.compile(
+            "adam",                      
+            0.1,                        // Increase learning rate from 0.01 to 0.1
+            "categorical_crossentropy", 
+            vec!["accuracy".to_string()]
+        );
 
-    //     // Step 5: Train model
-    //     println!("Training model...");
-    //     let history = model.fit(
-    //         &x_train,
-    //         &y_train,
-    //         64,             // Increase batch size from 32 to 64
-    //         5,             // Increase epochs from 2 to 10
-    //         Some((&x_test, &y_test))
-    //     );
+        // Step 5: Train model
+        println!("Training model...");
+        let history = model.fit(
+            &x_train,
+            &y_train,
+            32,             // Increase batch size from 32 to 64
+            10,             // Increase epochs from 2 to 10
+            Some((&x_test, &y_test))
+        );
 
-    //     // Step 6: Evaluate final model
-    //     println!("Evaluating model...");
-    //     let eval_metrics = model.evaluate(&x_test, &y_test, 32);
+        // Step 6: Evaluate final model
+        println!("Evaluating model...");
+        let eval_metrics = model.evaluate(&x_test, &y_test, 32);
         
-    //     // Print final results
-    //     println!("Final test accuracy: {:.2}%", eval_metrics["accuracy"] * 100.0);
+        // Print final results
+        println!("Final test accuracy: {:.2}%", eval_metrics["accuracy"] * 100.0);
         
-    //     // Verify model achieved reasonable accuracy (>85%)
-    //     assert!(eval_metrics["accuracy"] > 0.85, 
-    //         "Model accuracy ({:.2}%) below expected threshold", 
-    //         eval_metrics["accuracy"] * 100.0
-    //     );
+        // Verify model achieved reasonable accuracy (>85%)
+        assert!(eval_metrics["accuracy"] > 0.85, 
+            "Model accuracy ({:.2}%) below expected threshold", 
+            eval_metrics["accuracy"] * 100.0
+        );
 
-    //     // Verify training history contains expected metrics
-    //     assert!(history.contains_key("loss"));
-    //     assert!(history.contains_key("accuracy"));
-    //     assert!(history.contains_key("val_loss"));
-    //     assert!(history.contains_key("val_accuracy"));
+        // Verify training history contains expected metrics
+        assert!(history.contains_key("loss"));
+        assert!(history.contains_key("accuracy"));
+        assert!(history.contains_key("val_loss"));
+        assert!(history.contains_key("val_accuracy"));
     }
 
     #[test]
