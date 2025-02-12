@@ -1,7 +1,7 @@
 use rand::Rng;
 use rand_distr::{StandardNormal, Uniform, Distribution};
 use std::ops::{Add, Sub, Mul, Div};
-
+use rayon::prelude::*;
 #[derive(Debug, Clone)]
 pub struct NDArray {
     pub data: Vec<f64>,
@@ -853,12 +853,34 @@ impl NDArray {
     /// # Returns
     ///
     /// A new NDArray resulting from the element-wise multiplication.
+    // pub fn multiply(&self, other: &NDArray) -> Self {
+    //     assert_eq!(self.shape, other.shape, "Shapes must match for element-wise multiplication");
+
+    //     let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(a, b)| a * b).collect();
+    //     NDArray::new(data, self.shape.clone())
+    // }
     pub fn multiply(&self, other: &NDArray) -> Self {
         assert_eq!(self.shape, other.shape, "Shapes must match for element-wise multiplication");
-
-        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(a, b)| a * b).collect();
+        
+        let data = if self.data.len() > 1000 {
+            self.data.par_iter()
+                .zip(other.data.par_iter())
+                .map(|(&a, &b)| a * b)
+                .collect()
+        } else {
+            self.data.iter()
+                .zip(other.data.iter())
+                .map(|(&a, &b)| a * b)
+                .collect()    
+        };
+        
         NDArray::new(data, self.shape.clone())
     }
+
+   
+
+
+
 
     /// Subtracts a scalar from each element in the array
     ///
@@ -1920,6 +1942,27 @@ mod tests {
         let arr2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
         let multiply = arr1.multiply(&arr2);
         assert_eq!(multiply.data(), &[4.0, 10.0, 18.0]);
+    }
+
+    #[test]
+    fn test_multiply_large() {
+        // Test small array (< 1000 elements)
+        let arr1 = NDArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]);
+        let arr2 = NDArray::new(vec![2.0, 3.0, 4.0, 5.0], vec![2, 2]);
+        let result = arr1.multiply(&arr2);
+        assert_eq!(result.data(), &[2.0, 6.0, 12.0, 20.0]);
+
+        // Test large array (> 1000 elements) 
+        let large_arr1 = NDArray::new(vec![1.0; 2000], vec![1000, 2]);
+        let large_arr2 = NDArray::new(vec![2.0; 2000], vec![1000, 2]);
+        let large_result = large_arr1.multiply(&large_arr2);
+        assert_eq!(large_result.data(), &vec![2.0; 2000]);
+
+        // Test mismatched shapes
+        let arr3 = NDArray::new(vec![1.0, 2.0], vec![2, 1]);
+        let arr4 = NDArray::new(vec![1.0, 2.0, 3.0], vec![3, 1]);
+        let result = std::panic::catch_unwind(|| arr3.multiply(&arr4));
+        assert!(result.is_err());
     }
 
     /// Tests subtraction of scalar from array
