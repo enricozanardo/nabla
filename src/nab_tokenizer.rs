@@ -1,7 +1,7 @@
 use tokenizers::models::wordpiece::WordPieceBuilder;
 use tokenizers::Tokenizer;
 use tokenizers::pre_tokenizers::whitespace::WhitespaceSplit;
-use tokenizers::processors::bert::BertProcessing;
+// use tokenizers::processors::bert::BertProcessing;
 use std::collections::HashMap;
 use rand_distr::{Distribution, Normal};
 use rand::thread_rng;
