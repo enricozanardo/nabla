@@ -1,6 +1,7 @@
 use crate::nab_array::NDArray;
 use crate::nab_tokenizer::NabTokenizer;
 
+#[derive(Clone)]
 pub struct NabAttention {
     pub query: NDArray,     // Query weight matrix [d_model, d_model]
     pub key: NDArray,       // Key weight matrix [d_model, d_model]

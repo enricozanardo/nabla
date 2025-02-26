@@ -993,6 +993,7 @@ mod tests {
 /// * `b2` - Bias vector for the second layer.
 /// * `hidden_dim` - Dimension of the hidden layer.
 /// * `output_dim` - Dimension of the output layer.
+#[derive(Clone)]
 pub struct FeedForwardNetwork {
     pub w1: NDArray,
     pub b1: NDArray,

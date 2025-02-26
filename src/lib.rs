@@ -13,6 +13,7 @@ pub mod nab_model;
 pub mod nab_tokenizer;
 pub mod nab_sa;
 pub mod nab_embeddings;
+pub mod nab_transformer;
 
 
 
