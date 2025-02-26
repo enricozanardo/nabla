@@ -101,13 +101,6 @@ impl NabTokenizer {
     pub fn with_vocab(embedding_dim: usize, vocab_path: Option<&str>) -> Self {
         let mut vocab = HashMap::new();
         
-        // Add special tokens first to ensure consistent IDs
-        vocab.insert("[PAD]".to_string(), 0);
-        vocab.insert("[UNK]".to_string(), 1);
-        vocab.insert("[CLS]".to_string(), 2);
-        vocab.insert("[SEP]".to_string(), 3);
-        vocab.insert("[MASK]".to_string(), 4);
-
         let path = vocab_path.unwrap_or("resources/bert-base-uncased-vocab.txt");
         if let Ok(loaded_vocab) = Self::load_bert_vocab(path) {
             // Skip special tokens that are already in the vocabulary
@@ -116,6 +109,19 @@ impl NabTokenizer {
                     vocab.insert(word, idx as u32);
                 }
             }
+        }
+        // Force special tokens to have expected indices
+        let specials = vec![
+            ("[PAD]", 0),
+            ("[UNK]", 1),
+            ("[CLS]", 2),
+            ("[SEP]", 3),
+            ("[MASK]", 4),
+            ("[unused0]", 5),
+            ("[unused1]", 6)
+        ];
+        for (token, index) in specials {
+            vocab.insert(token.to_string(), index);
         }
 
         let wordpiece = WordPieceBuilder::new()
@@ -143,11 +149,6 @@ impl NabTokenizer {
             tokenizer.add_special_tokens(&[tokenizers::AddedToken::from(*token, true)]);
         }
         
-        tokenizer.with_post_processor(Some(BertProcessing::new(
-            ("[SEP]".to_string(), 3),
-            ("[CLS]".to_string(), 2),
-        )));
-
         // Initialize embeddings with random values from N(0, 1)
         let mut rng = thread_rng();
         let normal = Normal::new(0.0, 1.0).unwrap();
@@ -385,6 +386,30 @@ impl NabTokenizer {
             println!("  {} -> {:?}", word, vocab.get(word));
         }
     }
+
+    /// Batch encodes a slice of texts into a vector of token NDArray.
+    /// This function leverages the existing encode function.
+    /// It returns a vector of NDArray, one for each input text.
+    ///
+    /// Codifica in batch una slice di testi in un vettore di NDArray di token.
+    /// Questa funzione utilizza la funzione encode esistente e ritorna un vettore di NDArray, uno per ogni testo.
+    pub fn encode_batch(&self, texts: &[&str], add_special_tokens: bool) -> Vec<NDArray> {
+        texts.iter().map(|&text| self.encode(text, add_special_tokens)).collect()
+    }
+
+    /// Preprocesses a corpus string by splitting on new lines and filtering out empty lines.
+    /// Returns a vector of non-empty, trimmed lines.
+    ///
+    /// Preprocessa una stringa di corpus dividendo per linea e rimuovendo quelle vuote.
+    /// Ritorna un vettore di linee non vuote e rimosse dei bordi.
+    pub fn preprocess_corpus(corpus: &str) -> Vec<&str> {
+        corpus.lines()
+              .filter_map(|line| {
+                  let trimmed = line.trim();
+                  if trimmed.is_empty() { None } else { Some(trimmed) }
+              })
+              .collect()
+    }
 }
 
 #[cfg(test)]
@@ -528,5 +553,39 @@ mod tests {
         let cls_embedding2 = &embeddings2.data()[0..768];
         
         assert_eq!(cls_embedding1, cls_embedding2, "Same special token should have same embedding");
+    }
+
+    /// Test for the batch encoding function of NabTokenizer.
+    /// Test per la funzione di codifica in batch di NabTokenizer.
+    #[test]
+    fn test_batch_encoding() {
+        let tokenizer = NabTokenizer::new(64);
+        let texts = vec!["Hello world", "Testing batch encoding", "Another sentence"];
+
+        // Encode with special tokens disabled
+        let encoded_batch = tokenizer.encode_batch(&texts, false);
+        assert_eq!(encoded_batch.len(), texts.len(), "Should return as many NDArray as input texts");
+
+        // Check that each encoded vector has at least one token
+        for tokens in encoded_batch.iter() {
+            assert!(tokens.shape()[0] > 0, "Each encoded text should have at least one token");
+        }
+
+        // Encode with special tokens enabled and verify first and last tokens
+        let encoded_with_special = tokenizer.encode_batch(&["Hello world"], true);
+        let tokens = &encoded_with_special[0];
+        // First token should be [CLS] (ID: 2) and last token should be [SEP] (ID: 3)
+        assert_eq!(tokens.data()[0], 2.0, "First token should be [CLS] with ID 2");
+        assert_eq!(tokens.data()[tokens.shape()[0] - 1], 3.0, "Last token should be [SEP] with ID 3");
+    }
+
+    /// Test for the preprocess_corpus function of NabTokenizer.
+    /// Test per la funzione preprocess_corpus di NabTokenizer.
+    #[test]
+    fn test_preprocess_corpus() {
+        let corpus = "\nLine one\n\n Line two  \nLine three\n   \n";
+        let processed = NabTokenizer::preprocess_corpus(corpus);
+        let expected = vec!["Line one", "Line two", "Line three"];
+        assert_eq!(processed, expected, "The processed corpus should match the expected non-empty trimmed lines");
     }
 }
