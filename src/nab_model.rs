@@ -10,6 +10,7 @@ use flate2::write::GzEncoder;
 use flate2::read::GzDecoder;
 use flate2::Compression;
 use std::io::{Write, Read};
+use crate::nab_activations::NablaActivation;
 
 static mut NEXT_NODE_ID: usize = 0;
 
@@ -980,6 +981,159 @@ mod tests {
         let dense = NabLayer::dense(784, 128, Some("relu"), Some("dense1"));
         let output = input.apply(dense);
         assert_eq!(input.get_input_shape(), &shape, "Input shape should remain unchanged after applying layer");
+    }
+}
+
+/// FeedForwardNetwork represents a two-layer MLP with ReLU activation.
+///
+/// # Fields
+/// * `w1` - Weight matrix for the first layer.
+/// * `b1` - Bias vector for the first layer.
+/// * `w2` - Weight matrix for the second layer.
+/// * `b2` - Bias vector for the second layer.
+/// * `hidden_dim` - Dimension of the hidden layer.
+/// * `output_dim` - Dimension of the output layer.
+pub struct FeedForwardNetwork {
+    pub w1: NDArray,
+    pub b1: NDArray,
+    pub w2: NDArray,
+    pub b2: NDArray,
+    pub hidden_dim: usize,
+    pub output_dim: usize,
+}
+
+impl FeedForwardNetwork {
+    /// Creates a new FeedForwardNetwork with random weights and biases.
+    ///
+    /// # Arguments
+    /// * `input_dim` - Dimension of the input layer.
+    /// * `hidden_dim` - Dimension of the hidden layer.
+    /// * `output_dim` - Dimension of the output layer.
+    ///
+    /// # Returns
+    /// A new FeedForwardNetwork instance.
+    pub fn new(input_dim: usize, hidden_dim: usize, output_dim: usize) -> Self {
+        let w1 = NDArray::rand_uniform(&[input_dim, hidden_dim]).multiply_scalar(0.1);
+        let b1 = NDArray::zeros(vec![hidden_dim]);
+        let w2 = NDArray::rand_uniform(&[hidden_dim, output_dim]).multiply_scalar(0.1);
+        let b2 = NDArray::zeros(vec![output_dim]);
+        Self { w1, b1, w2, b2, hidden_dim, output_dim }
+    }
+
+    /// Performs a forward pass through the two-layer MLP.
+    ///
+    /// # Arguments
+    /// * `x` - Input NDArray of shape [batch_size, input_dim].
+    ///
+    /// # Returns
+    /// An NDArray of shape [batch_size, output_dim] representing the output of the network.
+    pub fn forward(&self, x: &NDArray) -> NDArray {
+        // First layer: xW1 + b1
+        let z1 = x.dot(&self.w1).add(&self.b1.expand_dims(0));
+        // Apply ReLU activation
+        let a1 = NablaActivation::relu_forward(&z1);
+        // Second layer: a1W2 + b2
+        a1.dot(&self.w2).add(&self.b2.expand_dims(0))
+    }
+}
+
+/// Layer normalization applied to the input NDArray.
+///
+/// # Arguments
+/// * `x` - Input NDArray to normalize.
+///
+/// # Returns
+/// A normalized NDArray with the same shape as the input.
+pub fn layer_normalize(x: &NDArray) -> NDArray {
+    let mean = x.mean_axis(1).expand_dims(1);
+    let variance = x.var_axis(1).expand_dims(1);
+    let epsilon = 1e-8;
+    let std_dev = variance.add_scalar(epsilon).sqrt();
+    
+    // Manually handle broadcasting by expanding dimensions
+    let mean_expanded = mean.expand_dims(2);
+    let std_dev_expanded = std_dev.expand_dims(2);
+    let normalized = x.subtract(&mean_expanded).divide(&std_dev_expanded);
+    
+    // Detailed Debugging: Print mean, variance, std_dev, and normalized values
+    println!("Mean: {:?}", mean.data());
+    println!("Variance: {:?}", variance.data());
+    println!("Standard Deviation: {:?}", std_dev.data());
+    println!("Normalized: {:?}", normalized.data());
+    
+    println!("Input shape: {:?}", x.shape());
+    println!("Mean shape: {:?}", mean.shape());
+    println!("Variance shape: {:?}", variance.shape());
+    println!("Standard Deviation shape: {:?}", std_dev.shape());
+    println!("Normalized shape: {:?}", normalized.shape());
+    normalized
+}
+
+impl FeedForwardNetwork {
+    /// Performs a forward pass through the two-layer MLP with layer normalization.
+    ///
+    /// # Arguments
+    /// * `x` - Input NDArray of shape [batch_size, input_dim].
+    ///
+    /// # Returns
+    /// An NDArray of shape [batch_size, output_dim] representing the output of the network.
+    pub fn forward_with_layer_norm(&self, x: &NDArray) -> NDArray {
+        // First layer: xW1 + b1
+        let z1 = x.dot(&self.w1).add(&self.b1.expand_dims(0));
+        // Apply ReLU activation
+        let a1 = NablaActivation::relu_forward(&z1);
+        // Apply layer normalization
+        let a1_norm = layer_normalize(&a1);
+        // Second layer: a1W2 + b2
+        let z2 = a1_norm.dot(&self.w2).add(&self.b2.expand_dims(0));
+        // Apply layer normalization
+        layer_normalize(&z2)
+    }
+}
+
+#[cfg(test)]
+mod layer_norm_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+
+    /// Test the layer normalization function.
+    #[test]
+    fn test_layer_normalization() {
+        let input = NDArray::rand_uniform(&[3, 4]).multiply_scalar(0.1);
+        let normalized = layer_normalize(&input);
+
+        // Check that the mean of each row is approximately 0
+        for i in 0..3 {
+            let row_mean = normalized.view(i * 4, (i + 1) * 4).iter().sum::<f64>() / 4.0;
+            assert!((row_mean).abs() < 1e-4, "Row mean should be approximately 0");
+        }
+
+        // Check that the variance of each row is approximately 1
+        for i in 0..3 {
+            let row_variance = normalized.view(i * 4, (i + 1) * 4).iter().map(|x| x * x).sum::<f64>() / 4.0;
+            assert!((row_variance - 1.0).abs() < 1e-4, "Row variance should be approximately 1");
+        }
+    }
+
+    /// Test the forward pass with layer normalization in the FeedForwardNetwork.
+    #[test]
+    fn test_feedforward_network_with_layer_norm() {
+        let input_dim = 4;
+        let hidden_dim = 5;
+        let output_dim = 3;
+        let batch_size = 2;
+
+        // Create a FeedForwardNetwork.
+        let network = FeedForwardNetwork::new(input_dim, hidden_dim, output_dim);
+
+        // Generate sample input with shape [2, 4].
+        let input = NDArray::rand_uniform(&[batch_size, input_dim]).multiply_scalar(0.1);
+
+        // Execute the forward pass with layer normalization.
+        let output = network.forward_with_layer_norm(&input);
+
+        // Verify that the output has shape [2, 3].
+        assert_eq!(output.shape(), &[batch_size, output_dim], "Output shape should be [2, 3]");
     }
 }
 

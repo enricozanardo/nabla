@@ -280,6 +280,43 @@ impl NabAttention {
     }
 }
 
+/// TransformerBlock wraps a multi-head self-attention layer.
+///
+/// # Fields
+/// * `attention` - The NabAttention instance for multi-head attention.
+/// * `d_model` - The model dimension.
+pub struct TransformerBlock {
+    pub attention: NabAttention,
+    pub d_model: usize,
+}
+
+impl TransformerBlock {
+    /// Creates a new TransformerBlock with the given NabAttention instance.
+    ///
+    /// # Arguments
+    /// * `attention` - The NabAttention instance for multi-head attention.
+    ///
+    /// # Returns
+    /// A new TransformerBlock instance.
+    pub fn new(attention: NabAttention) -> Self {
+        let d_model = attention.d_model;
+        Self { attention, d_model }
+    }
+
+    /// Processes input embeddings through the multi-head self-attention layer.
+    ///
+    /// # Arguments
+    /// * `embeddings` - Input token embeddings of shape [seq_length, d_model].
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// - Attention probabilities for each head.
+    /// - The output tensor after attention.
+    pub fn forward(&self, embeddings: &NDArray) -> (Vec<NDArray>, NDArray) {
+        self.attention.forward_multihead(embeddings)
+    }
+}
+
 /*
    NabAttention Module Tests
    Test module for NabAttention with detailed bilingual comments
@@ -565,6 +602,43 @@ mod tests {
             println!("  Head {}: shape {:?} -> {:?}", i, head_probs.shape(), head_probs.data());
         }
         println!("Multi-head Concatenated Output (shape {:?}): {:?}", multi_output.shape(), multi_output.data());
+    }
+
+    /// Test the creation and forward pass of the TransformerBlock.
+    #[test]
+    fn test_transformer_block_forward() {
+        let embedding_dim = 8;
+        let num_heads = 2;
+        let seq_length = 4;
+
+        // Generate sample embeddings with shape [4, 8].
+        let embeddings = NDArray::rand_uniform(&[seq_length, embedding_dim]).multiply_scalar(0.1);
+
+        // Create weight matrices with correct dimensions [8, 8].
+        let query_weights = NDArray::rand_uniform(&[embedding_dim, embedding_dim]).multiply_scalar(0.1);
+        let key_weights   = NDArray::rand_uniform(&[embedding_dim, embedding_dim]).multiply_scalar(0.1);
+        let value_weights = NDArray::rand_uniform(&[embedding_dim, embedding_dim]).multiply_scalar(0.1);
+
+        // Create the NabAttention module.
+        let attention = NabAttention::new(
+            query_weights,
+            key_weights,
+            value_weights,
+            num_heads,
+            embedding_dim
+        );
+
+        // Create the TransformerBlock.
+        let transformer_block = TransformerBlock::new(attention);
+
+        // Execute the forward pass.
+        let (attention_probs, output) = transformer_block.forward(&embeddings);
+
+        // Verify that the number of attention probability matrices equals the number of heads.
+        assert_eq!(attention_probs.len(), num_heads, "Should have {} attention probability matrices", num_heads);
+
+        // Verify that the concatenated output has shape [4, 8] (original embedding dimension).
+        assert_eq!(output.shape(), &[seq_length, embedding_dim], "Final concatenated output should have shape [4, {}]", embedding_dim);
     }
 }
 

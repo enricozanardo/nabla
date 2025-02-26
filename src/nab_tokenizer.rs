@@ -374,6 +374,7 @@ impl NabTokenizer {
     }
 
     /// Debug function to print vocabulary information
+    #[allow(dead_code)]
     fn debug_vocab(&self) {
         let vocab = self.get_vocab();
         println!("Vocabulary size: {}", vocab.len());

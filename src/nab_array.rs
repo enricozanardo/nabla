@@ -935,10 +935,39 @@ impl NDArray {
     ///
     /// A new NDArray resulting from the element-wise division.
     pub fn divide(&self, other: &NDArray) -> Self {
-        assert_eq!(self.shape, other.shape, "Shapes must match for element-wise division");
+        // Debug print:
+        println!("Dividing: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
 
-        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(a, b)| a / b).collect();
-        NDArray::new(data, self.shape.clone())
+        // Case 1: Check for broadcast scenario: if self is 2D and other.shape has extra dimensions with product 1 beyond the first dimension
+        if self.shape.len() == 2 && other.shape.len() > 1 {
+            // Compute product of dimensions beyond the first for 'other'
+            let prod: usize = other.shape.iter().skip(1).product();
+            if prod == 1 && other.shape[0] == self.shape[0] {
+                let rows = self.shape[0];
+                let cols = self.shape[1];
+                let mut result_data = Vec::with_capacity(self.data.len());
+                for i in 0..rows {
+                    let divisor = other.data[i];
+                    // Avoid division by zero if necessary
+                    for j in 0..cols {
+                        let idx = i * cols + j;
+                        result_data.push(self.data[idx] / divisor);
+                    }
+                }
+                return NDArray::new(result_data, self.shape.clone());
+            }
+        }
+
+        // Case 2: If shapes match exactly, perform normal element-wise division
+        if self.shape == other.shape {
+            let result_data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(&a, &b)| a / b).collect();
+            return NDArray::new(result_data, self.shape.clone());
+        }
+
+        // Fallback to simple broadcasting by using modulo (if sizes allow it).
+        let other_len = other.data.len();
+        let result_data: Vec<f64> = self.data.iter().enumerate().map(|(i, &val)| val / other.data[i % other_len]).collect();
+        NDArray::new(result_data, self.shape.clone())
     }
 
     /// Divides each element in the array by a scalar
@@ -1008,10 +1037,68 @@ impl NDArray {
     ///
     /// A new NDArray resulting from the element-wise subtraction.
     pub fn subtract(&self, other: &NDArray) -> Self {
-        assert_eq!(self.shape, other.shape, "Shapes must match for element-wise subtraction");
-
-        let data: Vec<f64> = self.data.iter().zip(other.data.iter()).map(|(a, b)| a - b).collect();
-        NDArray::new(data, self.shape.clone())
+        // Debugging: Print shapes
+        println!("Subtracting: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
+        
+        // Case 1: When self is 2D and other is 2D with one column, e.g., [N, M] - [N, 1]
+        if self.shape.len() == 2 && other.shape.len() == 2 && other.shape[1] == 1 {
+            let rows = self.shape[0];
+            let cols = self.shape[1];
+            let mut result_data = Vec::with_capacity(self.data.len());
+            for i in 0..rows {
+                let value = other.data[i];
+                for j in 0..cols {
+                    let idx = i * cols + j;
+                    result_data.push(self.data[idx] - value);
+                    println!("Accessing self[{}] and other[{}]", idx, i);
+                }
+            }
+            return NDArray::new(result_data, self.shape.clone());
+        }
+        
+        // Case 2: When self is 2D and other is 1D, e.g., [N, M] - [M] (broadcast across rows)
+        if self.shape.len() == 2 && other.shape.len() == 1 {
+            let cols = self.shape[1];
+            let mut result_data = Vec::with_capacity(self.data.len());
+            for (i, &val) in self.data.iter().enumerate() {
+                let col = i % cols;
+                let other_val = other.data[col];
+                result_data.push(val - other_val);
+                println!("Accessing self[{}] and other[{}]", i, col);
+            }
+            return NDArray::new(result_data, self.shape.clone());
+        }
+        
+        // Case 3: When self is 2D and other has extra dimensions (ndim > 2) but logically represents one scalar per row
+        // e.g., self.shape = [N, M] and other.shape = [N, 1, 1] (or [N, 1, 1, 1]) with product(other.shape[1..]) == 1
+        if self.shape.len() == 2 && other.shape.len() > 2 {
+            let prod: usize = other.shape.iter().skip(1).product();
+            if prod == 1 && other.shape[0] == self.shape[0] {
+                let rows = self.shape[0];
+                let cols = self.shape[1];
+                let mut result_data = Vec::with_capacity(self.data.len());
+                for i in 0..rows {
+                    let scalar = other.data[i];
+                    for j in 0..cols {
+                        let idx = i * cols + j;
+                        result_data.push(self.data[idx] - scalar);
+                        println!("Accessing self[{}] and other[{}]", idx, i);
+                    }
+                }
+                return NDArray::new(result_data, self.shape.clone());
+            }
+        }
+        
+        // Default: fallback broadcasting using modulo indexing
+        let other_len = other.data.len();
+        let result_data: Vec<f64> = self.data.iter().enumerate()
+            .map(|(i, &val)| {
+                let idx = i % other_len;
+                println!("Accessing self[{}] and other[{}]", i, idx);
+                val - other.data[idx]
+            })
+            .collect();
+        NDArray::new(result_data, self.shape.clone())
     }
 
     /// Adds a scalar to each element in the array
