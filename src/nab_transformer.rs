@@ -89,29 +89,6 @@ mod tests {
     use crate::nab_sa::NabAttention;
     use crate::nab_model::FeedForwardNetwork;
 
-    /// Dummy implementation for NabAttention for testing purposes.
-    /// Implementazione dummy per NabAttention a scopo di test.
-    impl NabAttention {
-        /// Creates a dummy NabAttention where forward returns the input unchanged.
-        /// Crea un NabAttention dummy dove forward restituisce l'input invariato.
-        pub fn dummy() -> Self {
-            let d_model = 4;
-            // Create an identity matrix of size d_model x d_model
-            // Crea una matrice identità di dimensione d_model x d_model
-            let identity_data: Vec<f64> = (0..(d_model * d_model))
-                .map(|i| if i % (d_model + 1) == 0 { 1.0 } else { 0.0 })
-                .collect();
-            let identity = NDArray::new(identity_data, vec![d_model, d_model]);
-            NabAttention {
-                query: identity.clone(),
-                key: identity.clone(),
-                value: identity,
-                num_heads: 1,
-                d_model,
-            }
-        }
-    }
-
     #[test]
     fn test_transformer_block_new() {
         // Create a dummy attention module and a feed-forward network.

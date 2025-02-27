@@ -1021,20 +1021,23 @@ impl FeedForwardNetwork {
         Self { w1, b1, w2, b2, hidden_dim, output_dim }
     }
 
-    /// Performs a forward pass through the two-layer MLP.
-    ///
-    /// # Arguments
-    /// * `x` - Input NDArray of shape [batch_size, input_dim].
-    ///
-    /// # Returns
-    /// An NDArray of shape [batch_size, output_dim] representing the output of the network.
+    /// Forward pass through the feed-forward network.
+    /// It applies a linear transformation, then a ReLU activation, followed by another linear transformation.
+    /// Passa il forward attraverso la rete feed-forward: una trasformazione lineare, seguita da ReLU, e un'altra trasformazione lineare.
     pub fn forward(&self, x: &NDArray) -> NDArray {
-        // First layer: xW1 + b1
-        let z1 = x.dot(&self.w1).add(&self.b1.expand_dims(0));
-        // Apply ReLU activation
-        let a1 = NablaActivation::relu_forward(&z1);
-        // Second layer: a1W2 + b2
-        a1.dot(&self.w2).add(&self.b2.expand_dims(0))
+        // For bias b1:
+        let b1_dim = if self.b1.shape().len() == 1 { self.b1.shape()[0] } else { self.b1.shape()[1] };
+        let b1_broadcast = NDArray::new(self.b1.data().to_vec(), vec![1, b1_dim]);
+        let z1 = x.dot(&self.w1).add(&b1_broadcast);
+        
+        // Activation using ReLU: a1 = relu(z1)
+        let a1 = crate::nab_activations::NablaActivation::relu_forward(&z1);
+        
+        // For bias b2:
+        let b2_dim = if self.b2.shape().len() == 1 { self.b2.shape()[0] } else { self.b2.shape()[1] };
+        let b2_broadcast = NDArray::new(self.b2.data().to_vec(), vec![1, b2_dim]);
+        let z2 = a1.dot(&self.w2).add(&b2_broadcast);
+        z2
     }
 }
 
@@ -1135,6 +1138,39 @@ mod layer_norm_tests {
 
         // Verify that the output has shape [2, 3].
         assert_eq!(output.shape(), &[batch_size, output_dim], "Output shape should be [2, 3]");
+    }
+}
+
+#[cfg(test)]
+mod feedforward_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+    
+    #[test]
+    fn test_feedforward_network_forward() {
+        // Create a simple FeedForwardNetwork where input_dim = hidden_dim = output_dim = 4
+        // For predictable results, we use an identity matrix for w1 and w2, and zero biases.
+        let d = 4;
+        let identity_data: Vec<f64> = (0..(d*d)).map(|i| if i % (d+1)==0 { 1.0 } else { 0.0 }).collect();
+        let zero_data: Vec<f64> = vec![0.0; d];
+        let w1 = NDArray::new(identity_data.clone(), vec![d, d]);
+        let b1 = NDArray::new(zero_data.clone(), vec![1, d]);
+        let w2 = NDArray::new(identity_data, vec![d, d]);
+        let b2 = NDArray::new(zero_data, vec![1, d]);
+        let ffn = FeedForwardNetwork { w1, b1, w2, b2, hidden_dim: d, output_dim: d };
+        
+        // Create an input NDArray
+        let input = NDArray::from_vec(vec![1.0, -2.0, 3.0, -4.0]);
+        // Since the weights are identity and biases zero, ReLU will zero out negatives:
+        // z1 = input, so a1 = relu(input) = [1, 0, 3, 0], then z2 = a1
+        let output = ffn.forward(&input.reshape(&[1, d]).unwrap());
+        
+        let expected = NDArray::from_vec(vec![1.0, 0.0, 3.0, 0.0]).reshape(&[1, d]).unwrap();
+        
+        // Compare elementwise
+        for (o, e) in output.data().iter().zip(expected.data().iter()) {
+            assert!((o - e).abs() < 1e-6);
+        }
     }
 }
 

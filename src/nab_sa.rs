@@ -279,6 +279,24 @@ impl NabAttention {
             // println!("{:-<60}", "");  // Print separator line
         }
     }
+
+    /// Creates a dummy NabAttention where forward returns the input unchanged.
+    /// Crea un NabAttention dummy dove forward restituisce l'input invariato.
+    pub fn dummy() -> Self {
+        let d_model = 4;
+        // Create an identity matrix of size d_model x d_model
+        let identity_data: Vec<f64> = (0..(d_model * d_model))
+            .map(|i| if i % (d_model + 1) == 0 { 1.0 } else { 0.0 })
+            .collect();
+        let identity = NDArray::new(identity_data, vec![d_model, d_model]);
+        NabAttention {
+            query: identity.clone(),
+            key: identity.clone(),
+            value: identity,
+            num_heads: 1,
+            d_model,
+        }
+    }
 }
 
 /// TransformerBlock wraps a multi-head self-attention layer.
