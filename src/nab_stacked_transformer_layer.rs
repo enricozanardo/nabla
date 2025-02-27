@@ -63,7 +63,7 @@ mod tests {
         let ffn = FeedForwardNetwork { w1: w_ffn1, b1: b_ffn1, w2: w_ffn2, b2: b_ffn2, hidden_dim: d, output_dim: d };
 
         // Create dummy attention module using its dummy() method
-        let attention = NabAttention::dummy();
+        let attention = NabAttention::dummy(d);
         DistilTransformerBlock { attention, ffn }
     }
 

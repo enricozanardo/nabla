@@ -59,6 +59,35 @@ impl NabLoss {
         -loss.iter().sum::<f64>() / y_true.shape()[0] as f64
     }
 
+    /*
+        cross_entropy_loss_lm: Computes the cross-entropy loss for language modeling.
+        It assumes that `predicted` is an NDArray of shape [batch, vocab] containing softmax probabilities
+        and that `target` is a 1D NDArray of shape [batch], with each element being the correct token index.
+        The loss is computed as the average of -log(probability) for the target tokens.
+    */
+    pub fn cross_entropy_loss_lm(predicted: &NDArray, target: &NDArray) -> f64 {
+        // Ensure predicted is 2D and target is 1D
+        assert_eq!(predicted.ndim(), 2, "Predicted NDArray must be 2D [batch, vocab]");
+        let shape = predicted.shape();
+        let batch = shape[0];
+        let vocab = shape[1];
+        assert_eq!(target.ndim(), 1, "Target NDArray must be 1D [batch]");
+        assert_eq!(target.size(), batch, "Target size must match batch size");
+        
+        let mut loss_sum = 0.0;
+        let epsilon = 1e-8;
+        for i in 0..batch {
+            let target_index = target.data()[i] as usize;
+            assert!(target_index < vocab, "Target index out of range");
+            // Calculate the index in the flat data vector
+            let index = i * vocab + target_index;
+            let prob = predicted.data()[index];
+            let prob = if prob < epsilon { epsilon } else { prob };
+            loss_sum -= prob.ln();
+        }
+        loss_sum / batch as f64
+    }
+
 }
 
 impl Loss for NabLoss {
@@ -98,5 +127,22 @@ mod tests {
         ]);
         let cross_entropy = NabLoss::cross_entropy_loss(&y_true, &y_pred);
         assert!((cross_entropy - 0.267654016).abs() < 1e-4);
+    }
+
+    // Unit tests for cross_entropy_loss_lm
+    #[test]
+    fn test_cross_entropy_loss_lm() {
+        // Create a predicted probability NDArray of shape [3, 3]
+        let predicted = NDArray::from_matrix(vec![
+            vec![0.7, 0.2, 0.1],
+            vec![0.1, 0.8, 0.1],
+            vec![0.05, 0.15, 0.8],
+        ]);
+        // Target indices for each example
+        let target = NDArray::from_vec(vec![0.0, 1.0, 2.0]);
+        let loss = NabLoss::cross_entropy_loss_lm(&predicted, &target);
+        // Expected loss: average of -ln(prob) for the correct classes
+        let expected = ((-0.7f64.ln()) + (-0.8f64.ln()) + (-0.8f64.ln())) / 3.0;
+        assert!((loss - expected).abs() < 1e-6, "Loss {} does not match expected {}", loss, expected);
     }
 } 

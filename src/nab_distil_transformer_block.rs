@@ -53,7 +53,7 @@ mod distil_transformer_tests {
         let b_ffn2 = NDArray::new(zero_data.clone(), vec![1, d]);
         let ffn = FeedForwardNetwork { w1: w_ffn1, b1: b_ffn1, w2: w_ffn2, b2: b_ffn2, hidden_dim: d, output_dim: d };
 
-        let attention = NabAttention::dummy();
+        let attention = NabAttention::dummy(d);
         let block = DistilTransformerBlock { attention, ffn };
         let input = NDArray::rand_uniform(&[2, d]).multiply_scalar(0.1);
         let output = block.forward(&input);
@@ -73,7 +73,7 @@ mod distil_transformer_tests {
         let b_ffn2 = NDArray::new(zero_data.clone(), vec![1, d]);
         let ffn = FeedForwardNetwork { w1: w_ffn1, b1: b_ffn1, w2: w_ffn2, b2: b_ffn2, hidden_dim: d, output_dim: d };
 
-        let attention = NabAttention::dummy();
+        let attention = NabAttention::dummy(d);
         let block = DistilTransformerBlock { attention, ffn };
         let input = NDArray::from_vec(vec![1.0, -1.0, 2.0, -2.0]).reshape(&[1, d]).unwrap();
         let output = block.forward(&input);

@@ -93,7 +93,8 @@ mod tests {
     fn test_transformer_block_new() {
         // Create a dummy attention module and a feed-forward network.
         // Crea un modulo di attenzione dummy e una rete feed-forward.
-        let attention = NabAttention::dummy();
+        let d_model = 4;  // using model dimension 4
+        let attention = NabAttention::dummy(d_model);
         let ffn = FeedForwardNetwork::new(4, 4, 4);
         let block = TransformerBlock::new(attention, ffn);
         // Check that the block was created with the correct dimensions
@@ -106,7 +107,8 @@ mod tests {
     fn test_transformer_block_forward() {
         // Create a transformer block with dummy attention and a basic feed-forward network.
         // Crea un blocco Transformer con attenzione dummy e una rete feed-forward di base.
-        let attention = NabAttention::dummy();
+        let d_model = 4;  // model dimension set to 4
+        let attention = NabAttention::dummy(d_model);
         let ffn = FeedForwardNetwork::new(4, 4, 4);
         let block = TransformerBlock::new(attention, ffn);
         

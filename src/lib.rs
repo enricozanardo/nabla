@@ -17,5 +17,6 @@ pub mod nab_transformer;
 pub mod nab_distil_transformer_block;
 pub mod nab_stacked_transformer_layer;
 pub mod nab_output_head;
-
+pub mod nab_tiny_llm_pipeline;
+pub mod nab_tiny_llm_model;
 
