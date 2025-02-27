@@ -122,4 +122,4 @@ mod tests {
         // Verifica che la forma dell'output corrisponda a quella dell'input
         assert_eq!(output.shape(), input.shape());
     }
-} 
+}

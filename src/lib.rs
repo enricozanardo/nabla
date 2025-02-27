@@ -14,6 +14,6 @@ pub mod nab_tokenizer;
 pub mod nab_sa;
 pub mod nab_embeddings;
 pub mod nab_transformer;
-
+pub mod nab_distil_transformer_block;
 
 
