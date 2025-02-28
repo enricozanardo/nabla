@@ -188,3 +188,55 @@ mod tests {
         }
     }
 }
+
+/*
+    sgd_optimizer_step: Applies SGD update to a list of parameters.
+    It takes a mutable slice of tuples, where each tuple is (&mut NDArray, &NDArray) representing (parameter, corresponding gradient).
+    It updates each parameter in-place using the update rule: parameter = parameter - learning_rate * gradient.
+    This uses NablaOptimizer::sgd_update internally.
+*/
+pub fn sgd_optimizer_step(param_gradients: &mut [(&mut NDArray, &NDArray)], learning_rate: f64) {
+    for (param, grad) in param_gradients.iter_mut() {
+        crate::nab_optimizers::NablaOptimizer::sgd_update(*param, grad, learning_rate);
+    }
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod optimizer_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+    use crate::nab_optimizers::NablaOptimizer;
+
+    #[test]
+    fn test_sgd_optimizer_step() {
+        // Create dummy parameters and gradients
+        let mut param1 = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        let mut param2 = NDArray::from_vec(vec![4.0, 5.0, 6.0]);
+
+        let grad1 = NDArray::from_vec(vec![0.1, 0.1, 0.1]);
+        let grad2 = NDArray::from_vec(vec![0.2, 0.2, 0.2]);
+
+        // Learning rate
+        let lr = 0.1;
+
+        // Prepare mutable slice of (parameter, gradient) tuples
+        let mut param_grads: Vec<(&mut NDArray, &NDArray)> = vec![(&mut param1, &grad1), (&mut param2, &grad2)];
+
+        // Apply SGD optimizer step
+        sgd_optimizer_step(&mut param_grads, lr);
+
+        // Expected updated values:
+        // param1: [1.0 - 0.1*0.1, 2.0 - 0.1*0.1, 3.0 - 0.1*0.1] = [0.99, 1.99, 2.99]
+        // param2: [4.0 - 0.1*0.2, 5.0 - 0.1*0.2, 6.0 - 0.1*0.2] = [3.98, 4.98, 5.98]
+        let expected_param1 = vec![0.99, 1.99, 2.99];
+        let expected_param2 = vec![3.98, 4.98, 5.98];
+
+        for (a, b) in param1.data().iter().zip(expected_param1.iter()) {
+            assert!((a - b).abs() < 1e-6, "param1 value {} does not match expected {}", a, b);
+        }
+        for (a, b) in param2.data().iter().zip(expected_param2.iter()) {
+            assert!((a - b).abs() < 1e-6, "param2 value {} does not match expected {}", a, b);
+        }
+    }
+}

@@ -109,6 +109,61 @@ impl TinyLLMPipeline {
             target,
         })
     }
+
+    /// Trains a tiny language model using a training pipeline.
+    ///
+    /// Steps:
+    /// 1. Loads the dataset from the provided file path.
+    /// 2. Tokenizes the corpus and prepares training data (input and target sequences).
+    /// 3. Computes the vocabulary size as (max token ID + 1).
+    /// 4. Initializes a TinyLLMModel with the computed vocabulary size, given embedding dimension, and number of transformer layers.
+    /// 5. Trains the model using the train_language_model function.
+    ///
+    /// # Arguments
+    ///
+    /// * `dataset_path` - The file path to the dataset (e.g., "datasets/alice_in_wonderland.txt").
+    /// * `embedding_dim` - Dimension of token embeddings and model hidden dimension.
+    /// * `n_layers` - Number of transformer layers to stack.
+    /// * `batch_size` - Mini-batch size for training.
+    /// * `epochs` - Number of training epochs.
+    /// * `learning_rate` - Learning rate for SGD updates.
+    ///
+    /// # Returns
+    ///
+    /// A Result containing a tuple (TinyLLMPipeline, TinyLLMModel, (loss_history, accuracy_history)) on success, or an error string.
+    pub fn train_pipeline(dataset_path: &str, embedding_dim: usize, n_layers: usize, batch_size: usize, epochs: usize, learning_rate: f64) -> Result<(TinyLLMPipeline, crate::nab_tiny_llm_model::TinyLLMModel, (Vec<f64>, Vec<f64>)), String> {
+        // Load dataset from file
+        let raw_text = Self::load_dataset(dataset_path).map_err(|e| e.to_string())?;
+
+        // Initialize tokenizer using NabTokenizer with given embedding_dim
+        let tokenizer = crate::nab_tokenizer::NabTokenizer::new(embedding_dim);
+
+        // Tokenize the entire corpus; for language modeling, we disable special tokens
+        let tokens = Self::tokenize_corpus(&tokenizer, &raw_text, false);
+
+        // Prepare training data: input tokens (all except last) and target tokens (all except first)
+        let (input, target) = Self::prepare_data(&tokens);
+
+        // Compute vocabulary size as (maximum token id + 1)
+        let vocab_size = tokens.data().iter().cloned().fold(0.0, f64::max) as usize + 1;
+
+        // Initialize a TinyLLMModel with the computed vocab_size, embedding_dim, and n_layers
+        let mut model = crate::nab_tiny_llm_model::TinyLLMModel::new(vocab_size, embedding_dim, n_layers);
+
+        // Train the model using the training loop
+        let metrics = model.train_language_model(&input, &target, batch_size, epochs, learning_rate);
+
+        // Construct a TinyLLMPipeline instance for inspection
+        let pipeline = TinyLLMPipeline {
+            tokenizer,
+            raw_text,
+            tokens,
+            input,
+            target,
+        };
+
+        Ok((pipeline, model, metrics))
+    }
 }
 
 #[cfg(test)]
@@ -169,5 +224,49 @@ mod tests {
         assert_eq!(pipeline.target.size() + 1, pipeline.tokens.size());
         // Cleanup temp file
         std::fs::remove_file(&temp_file).unwrap();
+    }
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod training_pipeline_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+    
+    #[test]
+    fn test_train_pipeline() {
+        // Use a small dataset file. For testing purposes, we assume the file exists.
+        // In a real test, we might create a temporary file. Here we'll use a sample text similar to Alice.
+        let sample_text = "Alice was beginning to get very tired of sitting by her sister on the bank.\nAnd so she began her adventures.";
+        let temp_path = "temp_alice.txt";
+        std::fs::write(temp_path, sample_text).unwrap();
+        
+        // Set parameters for the training pipeline
+        let embedding_dim = 8;
+        let n_layers = 1;
+        let batch_size = 2;
+        let epochs = 2;
+        let learning_rate = 0.1;
+        
+        // Run the training pipeline
+        let result = TinyLLMPipeline::train_pipeline(temp_path, embedding_dim, n_layers, batch_size, epochs, learning_rate);
+        assert!(result.is_ok(), "Train pipeline should succeed");
+        let (pipeline, model, metrics) = result.unwrap();
+        
+        // Check that the pipeline contains non-empty raw_text and tokens
+        assert!(!pipeline.raw_text.is_empty(), "Raw text should not be empty");
+        assert!(pipeline.tokens.size() > 0, "Tokens should not be empty");
+        
+        // Check that the model's vocab size matches the expected dimension from tokens
+        let expected_vocab_size = pipeline.tokens.data().iter().cloned().fold(0.0, f64::max) as usize + 1;
+        // The embedding layer of the model should have shape [vocab_size, embedding_dim]
+        assert_eq!(model.embedding_layer.embedding_matrix.shape()[0], expected_vocab_size);
+        
+        // Check that training metrics (loss and accuracy histories) have length equal to epochs
+        assert_eq!(metrics.0.len(), epochs, "Loss history length should equal number of epochs");
+        assert_eq!(metrics.1.len(), epochs, "Accuracy history length should equal number of epochs");
+        
+        // Cleanup temporary file
+        std::fs::remove_file(temp_path).unwrap();
     }
 } 

@@ -85,6 +85,229 @@ impl TinyLLMModel {
         // Compute output token probabilities with the output head.
         self.output_head.forward(&hidden)
     }
+
+    /// Trains the language model using the provided input and target token NDArray.
+    /// 
+    /// The training loop iterates over epochs and mini-batches. For each mini-batch, it:
+    /// - Performs a forward pass through the model.
+    /// - Computes the loss using the cross_entropy_loss_lm function from NabLoss.
+    /// - Simulates a backward pass by generating dummy gradients (constant values) for each parameter.
+    /// - Updates the model parameters using the sgd_optimizer_step function.
+    /// - Tracks and returns the average loss and (optional) accuracy per epoch.
+    /// 
+    /// Note: This is a simplified training loop for demonstration purposes and uses dummy gradients.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - NDArray of input token IDs (1D).
+    /// * `target` - NDArray of target token IDs (1D), shifted by one relative to input.
+    /// * `batch_size` - The size of each mini-batch.
+    /// * `epochs` - Number of training epochs.
+    /// * `learning_rate` - Learning rate for SGD updates.
+    ///
+    /// # Returns
+    ///
+    /// A tuple (loss_history, accuracy_history) where each is a Vec<f64> containing the metric for each epoch.
+    pub fn train_language_model(&mut self, input: &crate::nab_array::NDArray, target: &crate::nab_array::NDArray, batch_size: usize, epochs: usize, learning_rate: f64) -> (Vec<f64>, Vec<f64>) {
+        use crate::nab_loss::NabLoss;
+        use crate::nabla::sgd_optimizer_step;
+        let n_tokens = input.size();
+        let mut loss_history = Vec::new();
+        let mut acc_history = Vec::new();
+        for _epoch in 0..epochs {
+            let mut epoch_loss = 0.0;
+            let mut correct = 0;
+            let mut total = 0;
+            let num_batches = (n_tokens as f64 / batch_size as f64).ceil() as usize;
+            for i in 0..num_batches {
+                let start = i * batch_size;
+                let end = ((i + 1) * batch_size).min(n_tokens);
+                // Create mini-batch from input and target
+                let batch_input = crate::nab_array::NDArray::from_vec(input.data()[start..end].to_vec());
+                let batch_target = crate::nab_array::NDArray::from_vec(target.data()[start..end].to_vec());
+
+                // Forward pass
+                let output = self.forward(&batch_input);
+                // Compute loss using cross_entropy_loss_lm; output assumed shape [batch, vocab]
+                let loss = NabLoss::cross_entropy_loss_lm(&output, &batch_target);
+                epoch_loss += loss;
+
+                // Dummy gradient computation: for each parameter, create a dummy gradient NDArray
+                let dummy_grad = |param: &crate::nab_array::NDArray| -> crate::nab_array::NDArray {
+                    // Create a constant gradient of 0.001 with same shape
+                    let len = param.data().len();
+                    crate::nab_array::NDArray::from_vec(vec![0.001; len]).reshape(param.shape()).unwrap()
+                };
+
+                let mut param_grad_pairs: Vec<(&mut crate::nab_array::NDArray, crate::nab_array::NDArray)> = Vec::new();
+                {
+                    let emb = &mut self.embedding_layer.embedding_matrix;
+                    let grad_emb = dummy_grad(&*emb);
+                    param_grad_pairs.push((emb, grad_emb));
+                }
+                {
+                    let out_w = &mut self.output_head.weight;
+                    let grad_out_w = dummy_grad(&*out_w);
+                    param_grad_pairs.push((out_w, grad_out_w));
+                }
+                {
+                    let out_b = &mut self.output_head.bias;
+                    let grad_out_b = dummy_grad(&*out_b);
+                    param_grad_pairs.push((out_b, grad_out_b));
+                }
+                for block in self.transformer.blocks.iter_mut() {
+                    {
+                        let attn_q = &mut block.attention.query;
+                        let grad_attn_q = dummy_grad(&*attn_q);
+                        param_grad_pairs.push((attn_q, grad_attn_q));
+                    }
+                    {
+                        let attn_k = &mut block.attention.key;
+                        let grad_attn_k = dummy_grad(&*attn_k);
+                        param_grad_pairs.push((attn_k, grad_attn_k));
+                    }
+                    {
+                        let attn_v = &mut block.attention.value;
+                        let grad_attn_v = dummy_grad(&*attn_v);
+                        param_grad_pairs.push((attn_v, grad_attn_v));
+                    }
+                    {
+                        let w1 = &mut block.ffn.w1;
+                        let grad_w1 = dummy_grad(&*w1);
+                        param_grad_pairs.push((w1, grad_w1));
+                    }
+                    {
+                        let b1 = &mut block.ffn.b1;
+                        let grad_b1 = dummy_grad(&*b1);
+                        param_grad_pairs.push((b1, grad_b1));
+                    }
+                    {
+                        let w2 = &mut block.ffn.w2;
+                        let grad_w2 = dummy_grad(&*w2);
+                        param_grad_pairs.push((w2, grad_w2));
+                    }
+                    {
+                        let b2 = &mut block.ffn.b2;
+                        let grad_b2 = dummy_grad(&*b2);
+                        param_grad_pairs.push((b2, grad_b2));
+                    }
+                }
+
+                // Prepare mutable slice required by sgd_optimizer_step (convert gradient NDArray references)
+                let mut param_grad_refs: Vec<(&mut crate::nab_array::NDArray, &crate::nab_array::NDArray)> = Vec::new();
+                for pair in param_grad_pairs.iter_mut() {
+                    param_grad_refs.push((pair.0, &pair.1));
+                }
+
+                // Update parameters using SGD optimizer
+                sgd_optimizer_step(&mut param_grad_refs, learning_rate);
+
+                // For simplicity, compute accuracy only for single-sample batches
+                if end - start == 1 {
+                    let output_data = output.data();
+                    // Find index of maximum probability in the output
+                    let (predicted_idx, _) = output_data.iter()
+                        .enumerate()
+                        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                        .unwrap();
+                    let target_idx = batch_target.data()[0] as usize;
+                    if predicted_idx == target_idx {
+                        correct += 1;
+                    }
+                    total += 1;
+                }
+            } // end mini-batch loop
+            let avg_loss = epoch_loss / num_batches as f64;
+            let accuracy = if total > 0 { correct as f64 / total as f64 } else { 0.0 };
+            loss_history.push(avg_loss);
+            acc_history.push(accuracy);
+        } // end epoch loop
+        (loss_history, acc_history)
+    }
+
+    /// Evaluates the model's performance on a validation set.
+    ///
+    /// It iterates over the validation data in mini-batches, computes the average cross-entropy loss
+    /// and accuracy, and returns them as a tuple (avg_loss, accuracy).
+    ///
+    /// # Arguments
+    ///
+    /// * `val_input` - NDArray of validation input token IDs (1D).
+    /// * `val_target` - NDArray of validation target token IDs (1D), shifted by one relative to input.
+    /// * `batch_size` - Batch size to use for evaluation.
+    ///
+    /// # Returns
+    ///
+    /// A tuple (avg_loss, accuracy) as f64 values.
+    pub fn evaluate(&self, val_input: &crate::nab_array::NDArray, val_target: &crate::nab_array::NDArray, batch_size: usize) -> (f64, f64) {
+        use crate::nab_loss::NabLoss;
+        let n_tokens = val_input.size();
+        let num_batches = (n_tokens as f64 / batch_size as f64).ceil() as usize;
+        let mut total_loss = 0.0;
+        let mut correct = 0;
+        let mut total = 0;
+        for i in 0..num_batches {
+            let start = i * batch_size;
+            let end = ((i + 1) * batch_size).min(n_tokens);
+            let batch_input = crate::nab_array::NDArray::from_vec(val_input.data()[start..end].to_vec());
+            let batch_target = crate::nab_array::NDArray::from_vec(val_target.data()[start..end].to_vec());
+            let output = self.forward(&batch_input);
+            let loss = NabLoss::cross_entropy_loss_lm(&output, &batch_target);
+            total_loss += loss;
+            // For accuracy, if batch size is 1, compare argmax
+            if end - start == 1 {
+                let output_data = output.data();
+                let (predicted_idx, _) = output_data.iter()
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .unwrap();
+                let target_idx = batch_target.data()[0] as usize;
+                if predicted_idx == target_idx {
+                    correct += 1;
+                }
+                total += 1;
+            }
+        }
+        let avg_loss = total_loss / num_batches as f64;
+        let accuracy = if total > 0 { correct as f64 / total as f64 } else { 0.0 };
+        (avg_loss, accuracy)
+    }
+
+    /// Samples a token sequence from the model given a prompt.
+    ///
+    /// Starting from the given prompt (NDArray of token IDs), this function repeatedly runs forward passes
+    /// and selects the token with the maximum probability to append to the sequence. It runs for the specified
+    /// sample_length steps and returns the generated sequence as an NDArray.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - NDArray of token IDs to start the generation (1D).
+    /// * `sample_length` - The number of tokens to generate.
+    ///
+    /// # Returns
+    ///
+    /// An NDArray of token IDs representing the generated sequence (concatenation of the prompt and generated tokens).
+    pub fn sample(&self, prompt: &crate::nab_array::NDArray, sample_length: usize) -> crate::nab_array::NDArray {
+        use crate::nab_array::NDArray;
+        let mut generated = prompt.data().to_vec();
+        let mut current_prompt = prompt.clone();
+        for _ in 0..sample_length {
+            let output = self.forward(&current_prompt);
+            let output_data = output.data();
+            // Assume output shape [sequence_length, vocab]. We take the last token's output.
+            let vocab = output.shape()[1];
+            let seq_len = output.shape()[0];
+            let last_token_probs = &output_data[(seq_len - 1) * vocab..seq_len * vocab];
+            let (predicted_idx, _) = last_token_probs.iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                .unwrap();
+            generated.push(predicted_idx as f64);
+            // Update current_prompt by appending the predicted token
+            current_prompt = NDArray::from_vec(generated.clone());
+        }
+        NDArray::from_vec(generated)
+    }
 }
 
 #[cfg(test)]
@@ -149,5 +372,78 @@ mod tests {
                 assert!(p >= 0.0 && p <= 1.0, "Probability {} not in [0, 1]", p);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod training_loop_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+
+    #[test]
+    fn test_train_language_model() {
+        // Create a dummy training sequence of 20 tokens
+        // For simplicity, we use token IDs in range [0, 9]
+        let tokens: Vec<f64> = (0..20).map(|i| (i % 10) as f64).collect();
+        let input = NDArray::from_vec(tokens[..19].to_vec());
+        let target = NDArray::from_vec(tokens[1..20].to_vec());
+
+        // Create a tiny LLM model with small dimensions
+        let vocab_size = 10;
+        let embedding_dim = 4;
+        let n_layers = 1;
+        let mut model = TinyLLMModel::new(vocab_size, embedding_dim, n_layers);
+
+        // Train for 2 epochs with batch_size 5 and learning_rate 0.1
+        let (loss_history, acc_history) = model.train_language_model(&input, &target, 5, 2, 0.1);
+
+        // Check that we have 2 entries in loss_history and acc_history
+        assert_eq!(loss_history.len(), 2);
+        assert_eq!(acc_history.len(), 2);
+
+        // Loss values should be finite
+        for loss in loss_history {
+            assert!(loss.is_finite());
+        }
+    }
+}
+
+#[cfg(test)]
+mod evaluation_tests {
+    use super::*;
+    use crate::nab_array::NDArray;
+
+    #[test]
+    fn test_evaluate() {
+        // Create a dummy validation set of 10 tokens
+        let tokens: Vec<f64> = (0..10).map(|i| (i % 5) as f64).collect();
+        let val_input = NDArray::from_vec(tokens[..9].to_vec());
+        let val_target = NDArray::from_vec(tokens[1..10].to_vec());
+        
+        // Create a tiny LLM model
+        let vocab_size = 5;
+        let embedding_dim = 4;
+        let n_layers = 1;
+        let model = TinyLLMModel::new(vocab_size, embedding_dim, n_layers);
+        
+        let (avg_loss, accuracy) = model.evaluate(&val_input, &val_target, 3);
+        // Check that loss is finite and accuracy is between 0 and 1
+        assert!(avg_loss.is_finite());
+        assert!(accuracy >= 0.0 && accuracy <= 1.0);
+    }
+
+    #[test]
+    fn test_sample() {
+        // Create a dummy prompt of 3 tokens
+        let prompt = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        // Create a tiny LLM model with limited vocab
+        let vocab_size = 10;
+        let embedding_dim = 4;
+        let n_layers = 1;
+        let model = TinyLLMModel::new(vocab_size, embedding_dim, n_layers);
+        
+        let generated = model.sample(&prompt, 5);
+        // The generated sequence should have length equal to prompt length + sample_length
+        assert_eq!(generated.data().len(), 3 + 5);
     }
 } 
