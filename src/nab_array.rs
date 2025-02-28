@@ -1050,7 +1050,6 @@ impl NDArray {
                 for j in 0..cols {
                     let idx = i * cols + j;
                     result_data.push(self.data[idx] - value);
-                    println!("Accessing self[{}] and other[{}]", idx, i);
                 }
             }
             return NDArray::new(result_data, self.shape.clone());
@@ -1064,7 +1063,6 @@ impl NDArray {
                 let col = i % cols;
                 let other_val = other.data[col];
                 result_data.push(val - other_val);
-                println!("Accessing self[{}] and other[{}]", i, col);
             }
             return NDArray::new(result_data, self.shape.clone());
         }
@@ -1082,7 +1080,6 @@ impl NDArray {
                     for j in 0..cols {
                         let idx = i * cols + j;
                         result_data.push(self.data[idx] - scalar);
-                        println!("Accessing self[{}] and other[{}]", idx, i);
                     }
                 }
                 return NDArray::new(result_data, self.shape.clone());
@@ -1094,7 +1091,6 @@ impl NDArray {
         let result_data: Vec<f64> = self.data.iter().enumerate()
             .map(|(i, &val)| {
                 let idx = i % other_len;
-                println!("Accessing self[{}] and other[{}]", i, idx);
                 val - other.data[idx]
             })
             .collect();
