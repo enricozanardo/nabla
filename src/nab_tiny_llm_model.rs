@@ -446,4 +446,117 @@ mod evaluation_tests {
         // The generated sequence should have length equal to prompt length + sample_length
         assert_eq!(generated.data().len(), 3 + 5);
     }
-} 
+}
+
+// ---- New helper functions for sampling strategies ----
+
+// Function: sample_from_distribution
+// This function samples a token index from a given probability distribution, which is an NDArray with shape [1, vocab].
+// It iterates over the distribution, computes the cumulative probability, and returns the first index where the cumulative probability exceeds a random threshold.
+// Returns: usize token index.
+pub fn sample_from_distribution(probs: &NDArray) -> usize {
+    let shape = probs.shape();
+    assert_eq!(shape.len(), 2, "Expected a 2D array for distribution");
+    let vocab = shape[1];
+    let mut cumulative = 0.0;
+    let r: f64 = rand::random(); // random number in [0, 1)
+    for j in 0..vocab {
+        cumulative += probs.data()[j];
+        if r < cumulative {
+            return j;
+        }
+    }
+    vocab - 1 // fallback in case of numerical issues
+}
+
+// Function: concatenate
+// This function concatenates a token (represented as a usize) to an existing token sequence (an NDArray assumed to be 1D).
+// It returns a new NDArray with the new token appended to the end of the sequence.
+pub fn concatenate(token_seq: &NDArray, token: usize) -> NDArray {
+    let mut new_data = token_seq.data().to_vec();
+    new_data.push(token as f64);
+    NDArray::from_vec(new_data)
+}
+
+// ---- End of new helper functions ----
+
+// ---- New unit tests for the sampling helper functions ----
+#[cfg(test)]
+mod sampling_tests {
+    use super::*;
+    
+    #[test]
+    fn test_sample_from_distribution() {
+        // Create a simple probability distribution: [0.1, 0.3, 0.6]
+        // The NDArray should be 2D with one row and 3 columns
+        let probs = NDArray::from_vec(vec![0.1, 0.3, 0.6]).reshape(&[1, 3]).unwrap();
+        // Sample a token index
+        let idx = sample_from_distribution(&probs);
+        // The returned index should be between 0 and 2
+        assert!(idx < 3, "Sampled index {} is out of expected range", idx);
+    }
+    
+    #[test]
+    fn test_concatenate() {
+        // Create an NDArray representing a token sequence [1.0, 2.0, 3.0]
+        let token_seq = NDArray::from_vec(vec![1.0, 2.0, 3.0]);
+        // Concatenate token '4'
+        let new_seq = concatenate(&token_seq, 4);
+        // The expected sequence is [1.0, 2.0, 3.0, 4.0]
+        assert_eq!(new_seq.data(), &vec![1.0, 2.0, 3.0, 4.0]);
+    }
+}
+
+// ---- End of new unit tests ----
+
+// ---- New helper function for temperature scaling ----
+
+/// adjust_with_temperature applies temperature scaling to a probability distribution represented as an NDArray.
+/// It computes the natural logarithm of each probability, divides by the temperature, exponentiates, and then normalizes the result.
+/// This can be used to control the randomness of the sampling process (lower temperature means a sharper distribution).
+pub fn adjust_with_temperature(probs: &NDArray, temperature: f64) -> NDArray {
+    // Convert probabilities to logits using natural logarithm
+    let logits: Vec<f64> = probs.data().iter().map(|&p| p.ln()).collect();
+    // Divide logits by temperature and exponentiate
+    let scaled: Vec<f64> = logits.iter().map(|&l| (l / temperature).exp()).collect();
+    // Create an NDArray with the scaled values
+    let scaled_nd = NDArray::from_vec(scaled).reshape(probs.shape()).unwrap();
+    // Normalize each row of the NDArray
+    let shape = scaled_nd.shape();
+    let batch = shape[0];
+    let vocab = shape[1];
+    let mut normalized = Vec::with_capacity(scaled_nd.data().len());
+    for i in 0..batch {
+        let start = i * vocab;
+        let end = start + vocab;
+        let row = &scaled_nd.data()[start..end];
+        let sum: f64 = row.iter().sum();
+        for &val in row {
+            normalized.push(val / sum);
+        }
+    }
+    NDArray::from_vec(normalized).reshape(probs.shape()).unwrap()
+}
+
+// ---- End of new helper function ----
+
+// ---- New unit tests for temperature scaling ----
+#[cfg(test)]
+mod temperature_tests {
+    use super::*;
+
+    #[test]
+    fn test_adjust_with_temperature() {
+        // Create a simple probability distribution in 2D: one row, 3 columns
+        let probs = NDArray::from_vec(vec![0.2, 0.3, 0.5]).reshape(&[1, 3]).unwrap();
+        let temperature = 0.8;
+        let adjusted = adjust_with_temperature(&probs, temperature);
+        // Check that the output shape matches the input shape
+        assert_eq!(adjusted.shape(), probs.shape());
+
+        // The sum of probabilities in each row should be approximately 1
+        let sum: f64 = adjusted.data().iter().sum();
+        assert!((sum - 1.0).abs() < 1e-6, "Row sum is not normalized, got {}", sum);
+    }
+}
+// ---- End of new unit tests ---- 
