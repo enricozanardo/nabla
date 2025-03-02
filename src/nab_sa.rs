@@ -1,7 +1,12 @@
 use crate::nab_array::NDArray;
 use crate::nab_tokenizer::NabTokenizer;
+use serde;
+// use std::fmt;
 
-#[derive(Clone)]
+/// NabAttention is responsible for computing attention weights for the transformer.
+///
+/// Italian: NabAttention calcola i pesi di attenzione per il trasformatore.
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub struct NabAttention {
     pub query: NDArray,     // Query weight matrix [d_model, d_model]
     pub key: NDArray,       // Key weight matrix [d_model, d_model]
@@ -53,12 +58,6 @@ impl NabAttention {
         let q_weights = self.query.transpose().unwrap().slice(start_idx, end_idx).transpose().unwrap();
         let k_weights = self.key.transpose().unwrap().slice(start_idx, end_idx).transpose().unwrap();
         let v_weights = self.value.transpose().unwrap().slice(start_idx, end_idx).transpose().unwrap();
-
-        // Debug prints
-        println!("Debug: embeddings shape: {:?}", embeddings.shape());
-        println!("Debug: q_weights shape: {:?}", q_weights.shape());
-        println!("Debug: k_weights shape: {:?}", k_weights.shape());
-        println!("Debug: v_weights shape: {:?}", v_weights.shape());
 
         // Project inputs: embeddings [seq_len, d_model] dot weight [d_model, head_dim] gives [seq_len, head_dim]
         let query_matrix = embeddings.dot(&q_weights);
@@ -118,7 +117,7 @@ impl NabAttention {
                     corrected_probs_data[j] /= row_sum;
                 }
             }
-            println!("Debug: row {} corrected sum: {}", i, corrected_probs_data[start..end].iter().sum::<f64>());
+            // println!("Debug: row {} corrected sum: {}", i, corrected_probs_data[start..end].iter().sum::<f64>());
         }
         let attention_probs = NDArray::new(corrected_probs_data, exp_scores.shape().to_vec());
 

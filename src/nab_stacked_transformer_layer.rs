@@ -3,7 +3,8 @@ use crate::nab_distil_transformer_block::DistilTransformerBlock;
 
 /// StackedTransformerLayer stacks multiple DistilTransformerBlock layers to form a small transformer encoder
 /// with residual connections across layers to help with gradient flow.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug)]
 pub struct StackedTransformerLayer {
     pub blocks: Vec<DistilTransformerBlock>,
 }

@@ -3,3 +3,9 @@
 
 csv/mnist.csv
 /src/main.rs
+
+/datasets/final_1.txt
+/datasets/final_dataset.txt
+
+generated_text.txt
+trained_model.bin

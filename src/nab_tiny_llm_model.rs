@@ -11,7 +11,7 @@ use crate::nab_array::NDArray;
 ///
 /// Italian: TinyLLMModel rappresenta un piccolo modello linguistico combinando un embedding layer,
 /// un trasformatore impilato e un output head che prevede le probabilità dei token.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct TinyLLMModel {
     /// Embedding layer: maps token IDs to dense embeddings and adds positional encoding.
     pub embedding_layer: EmbeddingLayer,

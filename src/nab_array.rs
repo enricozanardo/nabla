@@ -2,7 +2,10 @@ use rand::Rng;
 use rand_distr::{StandardNormal, Uniform, Distribution};
 use std::ops::{Add, Sub, Mul, Div};
 use rayon::prelude::*;
-#[derive(Debug, Clone)]
+
+// Add the following attributes above the NDArray struct definition
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug)]
 pub struct NDArray {
     pub data: Vec<f64>,
     pub shape: Vec<usize>,
@@ -936,7 +939,7 @@ impl NDArray {
     /// A new NDArray resulting from the element-wise division.
     pub fn divide(&self, other: &NDArray) -> Self {
         // Debug print:
-        println!("Dividing: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
+        // println!("Dividing: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
 
         // Case 1: Check for broadcast scenario: if self is 2D and other.shape has extra dimensions with product 1 beyond the first dimension
         if self.shape.len() == 2 && other.shape.len() > 1 {
@@ -1038,7 +1041,7 @@ impl NDArray {
     /// A new NDArray resulting from the element-wise subtraction.
     pub fn subtract(&self, other: &NDArray) -> Self {
         // Debugging: Print shapes
-        println!("Subtracting: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
+        // println!("Subtracting: self.shape = {:?}, other.shape = {:?}", self.shape, other.shape);
         
         // Case 1: When self is 2D and other is 2D with one column, e.g., [N, M] - [N, 1]
         if self.shape.len() == 2 && other.shape.len() == 2 && other.shape[1] == 1 {

@@ -6,7 +6,11 @@ use crate::nab_model::layer_normalize;
 //// DistilTransformerBlock implementation following DistilBERT pre-layer norm design
 
 // DistilTransformerBlock applies pre-layer normalization before attention and MLP layers.
-#[derive(Clone)]
+/// DistilTransformerBlock represents a single transformer block used in the transformer architecture.
+/// It contains an attention module and a feed-forward network (FFN).
+///
+/// Italian: DistilTransformerBlock rappresenta un singolo blocco transformer, contenente un modulo di attenzione e una rete feed-forward.
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub struct DistilTransformerBlock {
     pub attention: NabAttention,
     pub ffn: FeedForwardNetwork,

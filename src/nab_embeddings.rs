@@ -9,7 +9,7 @@ use rand::thread_rng;
 /// * `embedding_matrix` - NDArray of shape [vocab_size, embedding_dim] representing the embedding weights.
 /// * `vocab_size` - The size of the vocabulary.
 /// * `embedding_dim` - The dimension of each embedding vector.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct EmbeddingLayer {
     pub embedding_matrix: NDArray, // shape: [vocab_size, embedding_dim]
     pub vocab_size: usize,

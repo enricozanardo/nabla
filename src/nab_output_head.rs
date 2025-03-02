@@ -3,7 +3,7 @@ use crate::nab_array::NDArray;
 /// OutputHead represents the output layer for a language model, mapping hidden states to token probabilities using a linear transformation followed by a softmax.
 ///
 /// Italian: OutputHead rappresenta il layer di output per un modello linguistico, mappando lo stato nascosto alle probabilità dei token usando una trasformazione lineare seguita da softmax.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
 pub struct OutputHead {
     /// Weight matrix of shape [input_dim, vocab_size]
     pub weight: NDArray,
