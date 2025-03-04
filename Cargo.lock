@@ -396,6 +396,7 @@ dependencies = [
  "byteorder",
  "csv",
  "flate2",
+ "indicatif",
  "rand",
  "rand_distr",
  "rayon",

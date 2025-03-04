@@ -1060,16 +1060,16 @@ pub fn layer_normalize(x: &NDArray) -> NDArray {
     let normalized = x.subtract(&mean_expanded).divide(&std_dev_expanded);
     
     // Detailed Debugging: Print mean, variance, std_dev, and normalized values
-    println!("Mean: {:?}", mean.data());
-    println!("Variance: {:?}", variance.data());
-    println!("Standard Deviation: {:?}", std_dev.data());
-    println!("Normalized: {:?}", normalized.data());
+    // println!("Mean: {:?}", mean.data());
+    // println!("Variance: {:?}", variance.data());
+    // println!("Standard Deviation: {:?}", std_dev.data());
+    // println!("Normalized: {:?}", normalized.data());
     
-    println!("Input shape: {:?}", x.shape());
-    println!("Mean shape: {:?}", mean.shape());
-    println!("Variance shape: {:?}", variance.shape());
-    println!("Standard Deviation shape: {:?}", std_dev.shape());
-    println!("Normalized shape: {:?}", normalized.shape());
+    // println!("Input shape: {:?}", x.shape());
+    // println!("Mean shape: {:?}", mean.shape());
+    // println!("Variance shape: {:?}", variance.shape());
+    // println!("Standard Deviation shape: {:?}", std_dev.shape());
+    // println!("Normalized shape: {:?}", normalized.shape());
     normalized
 }
 

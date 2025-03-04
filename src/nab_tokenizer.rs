@@ -588,5 +588,5 @@ mod tests {
         let processed = NabTokenizer::preprocess_corpus(corpus);
         let expected = vec!["Line one", "Line two", "Line three"];
         assert_eq!(processed, expected, "The processed corpus should match the expected non-empty trimmed lines");
-    }
+        }    
 }

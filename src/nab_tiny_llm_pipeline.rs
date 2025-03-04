@@ -170,24 +170,29 @@ impl TinyLLMPipeline {
 #[allow(unused_imports)]
 mod tests {
     use super::*;
-    use std::fs::write;
+    use std::fs::{self, File};
+    use std::io::Write;
     use std::path::Path;
     
-    // Create a temporary dataset file for testing
-    fn create_temp_dataset() -> String {
-        let temp_path = "temp_alice.txt";
-        let sample_text = "Alice was beginning to get very tired of sitting by her sister on the bank.";
-        write(temp_path, sample_text).unwrap();
+    // Helper function to create a temporary dataset file
+    fn create_temp_dataset_file() -> String {
+        let temp_path = "temp_dataset.txt";
+        let sample_text = "This is a sample text for testing.";
+        let mut file = File::create(temp_path).expect("Failed to create temporary dataset file");
+        file.write_all(sample_text.as_bytes()).expect("Failed to write sample text");
         temp_path.to_string()
     }
 
     #[test]
     fn test_load_dataset() {
-        let temp_file = create_temp_dataset();
-        let content = TinyLLMPipeline::load_dataset(&temp_file).unwrap();
-        assert!(content.contains("Alice was beginning"), "Dataset should contain the sample text");
-        // Cleanup temp file
-        std::fs::remove_file(&temp_file).unwrap();
+        // Create a temporary dataset file with sample text
+        let temp_path = create_temp_dataset_file();
+        let text = TinyLLMPipeline::load_dataset(&temp_path).unwrap();
+        assert!(text.contains("sample text"), "Dataset should contain the sample text");
+        // Clean up the temporary file
+        if Path::new(&temp_path).exists() {
+            fs::remove_file(&temp_path).expect("Failed to remove temporary dataset file");
+        }
     }
 
     #[test]
@@ -212,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_tiny_llm_pipeline_new() {
-        let temp_file = create_temp_dataset();
+        let temp_file = create_temp_dataset_file();
         // Use a small embedding dimension for testing
         let pipeline = TinyLLMPipeline::new(&temp_file, 64, false).unwrap();
         // Ensure raw text is loaded
@@ -223,7 +228,9 @@ mod tests {
         assert_eq!(pipeline.input.size() + 1, pipeline.tokens.size());
         assert_eq!(pipeline.target.size() + 1, pipeline.tokens.size());
         // Cleanup temp file
-        std::fs::remove_file(&temp_file).unwrap();
+        if Path::new(&temp_file).exists() {
+            fs::remove_file(&temp_file).expect("Failed to remove temporary dataset file");
+        }
     }
 }
 
