@@ -6,6 +6,7 @@ use crate::nab_sa::NabAttention;
 use crate::nab_model::FeedForwardNetwork;
 use crate::nab_array::NDArray;
 use indicatif::{ProgressBar, ProgressStyle};
+use serde_json;
 
 /// TinyLLMModel represents a tiny language model by combining an embedding layer,
 /// a stacked transformer, and an output head that predicts token probabilities.
@@ -24,6 +25,7 @@ pub struct TinyLLMModel {
 
 impl TinyLLMModel {
     /// Constructs a new TinyLLMModel.
+    /// TODO: Investigate if any improvements are needed for real model initialization.
     ///
     /// # Arguments
     /// * `vocab_size` - Size of the vocabulary (number of tokens).
@@ -39,26 +41,16 @@ impl TinyLLMModel {
     /// - `embedding_dim`: dimensione degli embedding (e del modello).
     /// - `n_layers`: numero di layer transformer da impilare.
     pub fn new(vocab_size: usize, embedding_dim: usize, n_layers: usize) -> Self {
-        // Create an embedding layer. EmbeddingLayer::new expects vocab_size and embedding_dim.
         let embedding_layer = EmbeddingLayer::new(vocab_size, embedding_dim);
-
-        // Build transformer blocks: each block uses a dummy NabAttention and a feed-forward network.
         let mut blocks = Vec::with_capacity(n_layers);
         for _ in 0..n_layers {
-            // For attention, we use NabAttention::dummy(embedding_dim) to create a dummy attention block with d_model == embedding_dim.
             let attention = NabAttention::dummy(embedding_dim);
-            // Create feed-forward network; here input_dim, hidden_dim, and output_dim are all equal to embedding_dim.
             let ffn = FeedForwardNetwork::new(embedding_dim, embedding_dim, embedding_dim);
-            // Create a DistilTransformerBlock using the attention and feed-forward network.
             let block = DistilTransformerBlock { attention, ffn };
             blocks.push(block);
         }
-        // Create the stacked transformer layer from the blocks
         let transformer = StackedTransformerLayer::new(blocks);
-
-        // Create the output head: it projects from embedding_dim to vocab_size
         let output_head = OutputHead::new(embedding_dim, vocab_size);
-
         TinyLLMModel {
             embedding_layer,
             transformer,
@@ -67,8 +59,7 @@ impl TinyLLMModel {
     }
 
     /// Performs a forward pass through the TinyLLMModel.
-    /// It converts input token IDs to embeddings, processes them with the transformer,
-    /// and applies the output head to produce token probabilities.
+    /// TODO: Replace with real forward pass implementation if necessary.
     ///
     /// # Arguments
     /// * `tokens` - An NDArray of token IDs.
@@ -79,15 +70,13 @@ impl TinyLLMModel {
     /// Italian: Esegue il forward pass attraverso TinyLLMModel. Converte gli ID dei token in embedding,
     /// li processa con il trasformatore, ed applica l'output head per ottenere le probabilità dei token.
     pub fn forward(&self, tokens: &NDArray) -> NDArray {
-        // Obtain embeddings with positional encoding from the embedding layer.
         let embeddings = self.embedding_layer.forward(tokens);
-        // Process the embeddings through the stacked transformer.
         let hidden = self.transformer.forward(&embeddings);
-        // Compute output token probabilities with the output head.
         self.output_head.forward(&hidden)
     }
 
-    /// Trains the language model using the provided input and target token NDArray.
+    /// Trains the language model.
+    /// TODO: Replace dummy gradient computations and parameter updates with real backpropagation and optimizer logic.
     /// 
     /// The training loop iterates over epochs and mini-batches. For each mini-batch, it:
     /// - Performs a forward pass through the model.
@@ -110,79 +99,119 @@ impl TinyLLMModel {
     ///
     /// A tuple (loss_history, accuracy_history) where each is a Vec<f64> containing the metric for each epoch.
     pub fn train_language_model(&mut self, input: &crate::nab_array::NDArray, target: &crate::nab_array::NDArray, batch_size: usize, epochs: usize, learning_rate: f64) -> (Vec<f64>, Vec<f64>) {
-        let mut loss_history = Vec::new();
-        let mut accuracy_history = Vec::new();
-        
-        let num_samples = input.shape()[0];
-        let num_batches = (num_samples as f64 / batch_size as f64).ceil() as usize;
+        use crate::nab_loss::NabLoss;
+        use indicatif::{ProgressBar, ProgressStyle};
+
+        let fixed_input = if input.ndim() == 1 {
+            input.reshape(&[input.size(), 1]).unwrap()
+        } else {
+            input.clone()
+        };
+        let num_samples = fixed_input.shape()[0];
+        let feature_dim = fixed_input.shape()[1];
+        let mut epoch_losses = Vec::new();
+        let mut epoch_accuracies = Vec::new();
 
         for epoch in 0..epochs {
-            let pb = indicatif::ProgressBar::new(num_batches as u64);
-            pb.set_style(indicatif::ProgressStyle::default_bar()
-                .template("Epoch {msg}: [{bar:40.cyan/blue}] {pos}/{len} batches | Loss: {loss:.4} | Acc: {acc:.2}%")
-                .unwrap());
-            let epoch_str = (epoch + 1).to_string();
-            pb.set_message(epoch_str.clone());
-            
-            let mut epoch_loss = 0.0;
-            let mut epoch_correct = 0;
-            let mut epoch_count = 0;
+            let pb = ProgressBar::new(num_samples as u64);
+            let template_string = format!("Epoch {{msg}}/{} [{{{{bar:40.cyan/blue}}}}] {{pos}}/{{len}}", epochs);
+            // Leak the string to obtain a &'static str
+            let template_static: &'static str = Box::leak(template_string.into_boxed_str());
+            let mut style = ProgressStyle::default_bar();
+            style = style.template(template_static).unwrap();
+            style = style.progress_chars("##-");
+            pb.set_style(style);
 
-            for batch in 0..num_batches {
-                let start = batch * batch_size;
-                let end = ((batch + 1) * batch_size).min(num_samples);
-                let batch_input = crate::nab_array::NDArray::from_vec(input.data()[start..end].to_vec());
-                let batch_target = crate::nab_array::NDArray::from_vec(target.data()[start..end].to_vec());
+            let mut total_loss = 0.0;
+            let mut total_correct = 0;
+            let mut batch_count = 0;
 
-                // Forward pass: obtain hidden representations and logits.
+            // Iterate over batches
+            let mut i = 0;
+            while i < num_samples {
+                let current_batch = if i + batch_size <= num_samples { batch_size } else { num_samples - i };
+                // Extract batch for input (2D) and target (1D)
+                let start_idx = i * feature_dim;
+                let end_idx = (i + current_batch) * feature_dim;
+                let batch_input = crate::nab_array::NDArray::new(fixed_input.data()[start_idx..end_idx].to_vec(), vec![current_batch, feature_dim]);
+                let batch_target = crate::nab_array::NDArray::new(target.data()[i..i+current_batch].to_vec(), vec![current_batch]);
+
+                // Forward pass: get hidden representation and logits
                 let (hidden, logits) = self.forward_with_hidden(&batch_input);
+                let predictions = logits; // predictions are softmax probabilities from output head
 
-                // Compute loss using cross_entropy_loss_lm
-                let loss = crate::nab_loss::NabLoss::cross_entropy_loss_lm(&logits, &batch_target);
-                epoch_loss += loss;
+                // Compute loss using cross-entropy for language modeling
+                let loss = crate::nab_loss::NabLoss::cross_entropy_loss_lm(&predictions, &batch_target);
+                total_loss += loss;
 
-                // Compute gradient of logits: softmax cross-entropy derivative is (predicted - one_hot) / batch_size
-                let vocab_size = self.output_head.weight.shape()[1];
-                let target_one_hot = Self::one_hot(&batch_target, vocab_size);
-                let grad_logits = logits.subtract(&target_one_hot).multiply_scalar(1.0 / ((end - start) as f64));
-
-                // Compute accuracy for the batch.
-                for i in 0..(end - start) {
-                    // Assume NDArray has a slice method that returns a new NDArray with one row.
-                    let sample_logits = logits.slice(i, i+1);
-                    let (pred_idx, _) = Self::argmax(&sample_logits);
-                    let target_idx = batch_target.data()[i] as usize;
-                    if pred_idx == target_idx {
-                        epoch_correct += 1;
+                // Compute accuracy: for each example, check if argmax equals target token
+                let mut correct = 0;
+                let vocab = predictions.shape()[1];
+                for j in 0..current_batch {
+                    let row_start = j * vocab;
+                    let row_end = row_start + vocab;
+                    let row = &predictions.data()[row_start..row_end];
+                    let row_nd = crate::nab_array::NDArray::new(row.to_vec(), vec![1, vocab]);
+                    let (predicted_idx, _) = Self::argmax(&row_nd);
+                    if (batch_target.data()[j] as usize) == predicted_idx {
+                        correct += 1;
                     }
-                    epoch_count += 1;
                 }
+                total_correct += correct;
 
-                // Backpropagation: Update only the output head parameters.
-                // Compute gradient for weight: dW = hidden^T dot grad_logits
-                let dW = hidden.transpose().unwrap().dot(&grad_logits);
-                // Compute gradient for bias: dB = sum(grad_logits, axis=0), assuming sum_axis returns a 1-row NDArray.
-                let dB = grad_logits.sum_axis(0);
-                
-                // Update parameters: new_param = param - learning_rate * gradient
-                self.output_head.weight = self.output_head.weight.subtract(&dW.multiply_scalar(learning_rate));
-                self.output_head.bias = self.output_head.bias.subtract(&dB.multiply_scalar(learning_rate));
+                // Backward pass: compute gradient of loss with respect to logits
+                // For softmax cross-entropy: grad = predictions - one_hot(target) / batch_size
+                let mut grad_logits = predictions.data().to_vec();
+                for j in 0..current_batch {
+                    let target_idx = batch_target.data()[j] as usize;
+                    grad_logits[j * vocab + target_idx] -= 1.0;
+                }
+                // Scale gradients by 1/current_batch
+                for val in grad_logits.iter_mut() {
+                    *val /= current_batch as f64;
+                }
+                let grad_logits_nd = crate::nab_array::NDArray::new(grad_logits, vec![current_batch, vocab]);
 
-                let epoch_fmt = format!("Epoch {}", epoch + 1);
-                pb.set_message(epoch_fmt);
-                pb.set_position((batch + 1) as u64);
+                // Compute gradients w.r.t output head parameters
+                // Let hidden be the activations before output head: shape [current_batch, hidden_dim]
+                // dW = hidden^T dot grad_logits; db = sum over rows of grad_logits
+                let hidden_T = hidden.transpose().unwrap();
+                let grad_w = hidden_T.dot(&grad_logits_nd);
+
+                // Compute bias gradient by summing grad_logits over batch (row-wise sum)
+                let mut grad_b = vec![0.0; vocab];
+                for j in 0..current_batch {
+                    for k in 0..vocab {
+                        grad_b[k] += grad_logits_nd.data()[j * vocab + k];
+                    }
+                }
+                let grad_b_nd = crate::nab_array::NDArray::new(grad_b, vec![1, vocab]);
+
+                // Update output head parameters using SGD
+                // new_param = param - learning_rate * gradient
+                // Assuming NDArray has element-wise subtraction and multiplication
+                let updated_weight = self.output_head.weight.subtract(&grad_w.multiply_scalar(learning_rate));
+                let updated_bias = self.output_head.bias.subtract(&grad_b_nd.multiply_scalar(learning_rate));
+                self.output_head.weight = updated_weight;
+                self.output_head.bias = updated_bias;
+
+                batch_count += 1;
+                pb.inc(current_batch as u64);
+                i += current_batch;
             }
-            pb.finish();
-            let avg_loss = epoch_loss / (num_batches as f64);
-            let avg_acc = epoch_correct as f64 / epoch_count as f64;
-            println!("Epoch {} completed: Average Loss = {:.4}, Average Accuracy = {:.2}%", epoch + 1, avg_loss, avg_acc * 100.0);
-            loss_history.push(avg_loss);
-            accuracy_history.push(avg_acc);
+            let finish_msg = format!("Epoch {} complete", epoch + 1);
+            let finish_msg_static: &'static str = Box::leak(finish_msg.into_boxed_str());
+            pb.finish_with_message(finish_msg_static);
+            epoch_losses.push(total_loss / batch_count as f64);
+            epoch_accuracies.push(total_correct as f64 / num_samples as f64);
+            println!("Epoch {}: Loss = {:.6}, Accuracy = {:.2}%", epoch + 1, epoch_losses.last().unwrap(), epoch_accuracies.last().unwrap() * 100.0);
         }
-        (loss_history, accuracy_history)
+
+        (epoch_losses, epoch_accuracies)
     }
 
     /// Evaluates the model's performance on a validation set.
+    /// TODO: Replace with real evaluation logic if needed.
     ///
     /// It iterates over the validation data in mini-batches, computes the average cross-entropy loss
     /// and accuracy, and returns them as a tuple (avg_loss, accuracy).
@@ -211,7 +240,6 @@ impl TinyLLMModel {
             let output = self.forward(&batch_input);
             let loss = NabLoss::cross_entropy_loss_lm(&output, &batch_target);
             total_loss += loss;
-            // For accuracy, if batch size is 1, compare argmax
             if end - start == 1 {
                 let output_data = output.data();
                 let (predicted_idx, _) = output_data.iter()
@@ -231,6 +259,7 @@ impl TinyLLMModel {
     }
 
     /// Samples a token sequence from the model given a prompt.
+    /// TODO: Enhance sampling strategy if required.
     ///
     /// Starting from the given prompt (NDArray of token IDs), this function repeatedly runs forward passes
     /// and selects the token with the maximum probability to append to the sequence. It runs for the specified
@@ -245,13 +274,11 @@ impl TinyLLMModel {
     ///
     /// An NDArray of token IDs representing the generated sequence (concatenation of the prompt and generated tokens).
     pub fn sample(&self, prompt: &crate::nab_array::NDArray, sample_length: usize) -> crate::nab_array::NDArray {
-        use crate::nab_array::NDArray;
         let mut generated = prompt.data().to_vec();
         let mut current_prompt = prompt.clone();
         for _ in 0..sample_length {
             let output = self.forward(&current_prompt);
             let output_data = output.data();
-            // Assume output shape [sequence_length, vocab]. We take the last token's output.
             let vocab = output.shape()[1];
             let seq_len = output.shape()[0];
             let last_token_probs = &output_data[(seq_len - 1) * vocab..seq_len * vocab];
@@ -260,15 +287,13 @@ impl TinyLLMModel {
                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                 .unwrap();
             generated.push(predicted_idx as f64);
-            // Update current_prompt by appending the predicted token
             current_prompt = NDArray::from_vec(generated.clone());
         }
         NDArray::from_vec(generated)
     }
 
-    /// New helper function: forward_with_hidden
-    /// This function performs a forward pass through TinyLLMModel and returns both the hidden representation
-    /// (the output of the transformer) and the logits from the output head.
+    /// Performs a forward pass and returns both hidden representation and logits.
+    /// TODO: Replace with a more sophisticated mechanism if required.
     pub fn forward_with_hidden(&self, tokens: &crate::nab_array::NDArray) -> (crate::nab_array::NDArray, crate::nab_array::NDArray) {
         let embeddings = self.embedding_layer.forward(tokens);
         let hidden = self.transformer.forward(&embeddings);
@@ -276,8 +301,8 @@ impl TinyLLMModel {
         (hidden, logits)
     }
 
-    /// New helper function: one_hot
-    /// Converts a 1D NDArray of token IDs into a one-hot encoded NDArray of shape [num_samples, vocab_size].
+    /// Converts a 1D NDArray of token IDs into a one-hot encoded NDArray.
+    /// TODO: Check edge cases and improve if needed.
     pub fn one_hot(target: &crate::nab_array::NDArray, vocab_size: usize) -> crate::nab_array::NDArray {
         let num_samples = target.shape()[0];
         let mut data = vec![0.0; num_samples * vocab_size];
@@ -290,8 +315,8 @@ impl TinyLLMModel {
         crate::nab_array::NDArray::new(data, vec![num_samples, vocab_size])
     }
 
-    /// New helper function: argmax
-    /// Returns the index and the maximum value of a 1-row NDArray (assumed to be 2D shape [1, vocab]).
+    /// Returns the index and maximum value of a 1-row NDArray (shape [1, vocab]).
+    /// TODO: Validate input dimensions and improve if needed.
     pub fn argmax(array: &crate::nab_array::NDArray) -> (usize, f64) {
         let vocab = array.shape()[1];
         let row = &array.data()[0..vocab];
@@ -305,6 +330,41 @@ impl TinyLLMModel {
         }
         (max_idx, max_val)
     }
+
+    /// Saves the model in GGUF format for use with AnythingLLM.
+    /// The model parameters (from the embedding layer, transformer, and output head) are extracted,
+    /// structured into a GGUFModel, serialized to JSON, and written to the specified file path.
+    /// TODO: Adjust the GGUF schema as necessary to fully comply with AnythingLLM requirements.
+    pub fn save_to_gguf(&self, path: &str) -> std::io::Result<()> {
+        // Construct a GGUF model representation (this is a simplified example)
+        let gguf_model = GGUFModel {
+            embedding_weights: self.embedding_layer.embedding_matrix.data().to_vec(),
+            embedding_shape: self.embedding_layer.embedding_matrix.shape().to_vec(),
+            transformer_weights: self.transformer.blocks.iter().flat_map(|block| {
+                let mut v = Vec::new();
+                v.extend_from_slice(block.attention.query.data());
+                v.extend_from_slice(block.attention.key.data());
+                v.extend_from_slice(block.attention.value.data());
+                v
+            }).collect(),
+            output_head_weight: self.output_head.weight.data().to_vec(),
+            output_head_bias: self.output_head.bias.data().to_vec(),
+        };
+        // Serialize the GGUF model to JSON (for demonstration purposes)
+        let serialized = serde_json::to_string(&gguf_model)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        std::fs::write(path, serialized)
+    }
+}
+
+// New struct representing the model in GGUF format.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GGUFModel {
+    pub embedding_weights: Vec<f64>,
+    pub embedding_shape: Vec<usize>,
+    pub transformer_weights: Vec<f64>,
+    pub output_head_weight: Vec<f64>,
+    pub output_head_bias: Vec<f64>,
 }
 
 #[cfg(test)]

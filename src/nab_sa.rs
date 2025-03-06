@@ -279,14 +279,20 @@ impl NabAttention {
         }
     }
 
-    /// Creates a dummy NabAttention where forward returns the input unchanged.
-    /// Crea un NabAttention dummy dove forward restituisce l'input invariato.
+    /// Creates a dummy NabAttention instance with random weights.
+    /// TODO: Replace with a full attention mechanism if needed.
     pub fn dummy(d_model: usize) -> Self {
-        // Updated dummy implementation using the provided d_model
-        let query = NDArray::eye(d_model);
-        let key = NDArray::eye(d_model);
-        let value = NDArray::eye(d_model);
-        NabAttention { query, key, value, num_heads: 1, d_model }
+        // Initialize query, key, and value weight matrices with random normal values
+        let query = NDArray::randn_2d(d_model, d_model);
+        let key = NDArray::randn_2d(d_model, d_model);
+        let value = NDArray::randn_2d(d_model, d_model);
+        NabAttention {
+            query,
+            key,
+            value,
+            num_heads: 1, // For simplicity, using single head; can be extended later
+            d_model,
+        }
     }
 }
 

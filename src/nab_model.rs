@@ -1025,19 +1025,14 @@ impl FeedForwardNetwork {
     /// It applies a linear transformation, then a ReLU activation, followed by another linear transformation.
     /// Passa il forward attraverso la rete feed-forward: una trasformazione lineare, seguita da ReLU, e un'altra trasformazione lineare.
     pub fn forward(&self, x: &NDArray) -> NDArray {
-        // For bias b1:
-        let b1_dim = if self.b1.shape().len() == 1 { self.b1.shape()[0] } else { self.b1.shape()[1] };
-        let b1_broadcast = NDArray::new(self.b1.data().to_vec(), vec![1, b1_dim]);
-        let z1 = x.dot(&self.w1).add(&b1_broadcast);
-        
-        // Activation using ReLU: a1 = relu(z1)
-        let a1 = crate::nab_activations::NablaActivation::relu_forward(&z1);
-        
-        // For bias b2:
-        let b2_dim = if self.b2.shape().len() == 1 { self.b2.shape()[0] } else { self.b2.shape()[1] };
-        let b2_broadcast = NDArray::new(self.b2.data().to_vec(), vec![1, b2_dim]);
-        let z2 = a1.dot(&self.w2).add(&b2_broadcast);
-        z2
+        // TODO: Replace the following dummy implementation with real forward pass computations.
+        // The current implementation is a placeholder that returns the input unchanged.
+        // let z1 = x.dot(&self.w1).add(&self.b1.expand_dims(0));
+        // let a1 = z1.map(|v| v.max(0.0)); // example activation
+        // let z2 = a1.dot(&self.w2).add(&self.b2.expand_dims(0));
+        // z2
+        // Placeholder dummy implementation:
+        x.clone()
     }
 }
 
