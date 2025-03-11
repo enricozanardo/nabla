@@ -115,13 +115,15 @@ impl TinyLLMModel {
 
         for epoch in 0..epochs {
             let pb = ProgressBar::new(num_samples as u64);
-            let template_string = format!("Epoch {{msg}}/{} [{{{{bar:40.cyan/blue}}}}] {{pos}}/{{len}}", epochs);
-            // Leak the string to obtain a &'static str
-            let template_static: &'static str = Box::leak(template_string.into_boxed_str());
-            let mut style = ProgressStyle::default_bar();
-            style = style.template(template_static).unwrap();
-            style = style.progress_chars("##-");
+            let static_template = "{msg} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)";
+            let style = ProgressStyle::default_bar()
+                            .template(static_template)
+                            .unwrap()
+                            .progress_chars("##-");
             pb.set_style(style);
+            let epoch_msg = format!("Epoch {}/{}", epoch + 1, epochs);
+            let epoch_msg_static: &'static str = Box::leak(epoch_msg.into_boxed_str());
+            pb.set_message(epoch_msg_static);
 
             let mut total_loss = 0.0;
             let mut total_correct = 0;
@@ -200,9 +202,8 @@ impl TinyLLMModel {
                 pb.inc(current_batch as u64);
                 i += current_batch;
             }
-            let finish_msg = format!("Epoch {} complete", epoch + 1);
-            let finish_msg_static: &'static str = Box::leak(finish_msg.into_boxed_str());
-            pb.finish_with_message(finish_msg_static);
+            let finish_msg: &'static str = Box::leak(format!("Epoch {} complete", epoch + 1).into_boxed_str());
+            pb.finish_with_message(finish_msg);
             epoch_losses.push(total_loss / batch_count as f64);
             epoch_accuracies.push(total_correct as f64 / num_samples as f64);
             println!("Epoch {}: Loss = {:.6}, Accuracy = {:.2}%", epoch + 1, epoch_losses.last().unwrap(), epoch_accuracies.last().unwrap() * 100.0);
@@ -337,7 +338,7 @@ impl TinyLLMModel {
     /// structured into a GGUFModel, serialized to JSON, and written to the specified file path.
     /// TODO: Adjust the GGUF schema as necessary to fully comply with AnythingLLM requirements.
     pub fn save_to_gguf(&self, path: &str) -> std::io::Result<()> {
-        // Construct a GGUF model representation (this is a simplified example)
+        // Construct a GGUF model representation with additional metadata
         let gguf_model = GGUFModel {
             embedding_weights: self.embedding_layer.embedding_matrix.data().to_vec(),
             embedding_shape: self.embedding_layer.embedding_matrix.shape().to_vec(),
@@ -351,9 +352,17 @@ impl TinyLLMModel {
             output_head_weight: self.output_head.weight.data().to_vec(),
             output_head_bias: self.output_head.bias.data().to_vec(),
         };
-        // Serialize the GGUF model to JSON (for demonstration purposes)
-        let serialized = serde_json::to_string(&gguf_model)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        /*
+           Note: GGUF is a binary format. Here, for demonstration purposes, we serialize the model data into a JSON string.
+           The output file will have a .gguf extension, so you can manually run a conversion command such as:
+
+           python3 convert-hf-to-gguf.py --model <path_to_generated_gguf_file> --outdir ./gguf-models
+
+           as shown in https://huggingface.co/TheBloke/Llama-2-7B-GGUF
+        */
+        let serialized = serde_json::to_string(&gguf_model).expect("Failed to serialize GGUF model");
+        // Write the serialized data to the provided path (use .gguf extension)
         std::fs::write(path, serialized)
     }
 }
