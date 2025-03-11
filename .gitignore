@@ -6,6 +6,10 @@ csv/mnist.csv
 
 /datasets/final_1.txt
 /datasets/final_dataset.txt
+/datasets/dataset.txt
 
 generated_text.txt
 trained_model.bin
+
+trained_model.gguf
+trained_model_gguf.json
